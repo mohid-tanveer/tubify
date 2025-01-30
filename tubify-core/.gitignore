@@ -22,3 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# SSL
+/src/backend/localhost.pem
+/src/backend/localhost-key.pem
