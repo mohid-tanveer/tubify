@@ -1,6 +1,5 @@
 from fastapi import FastAPI
 import uvicorn
-from datetime import timedelta
 from dotenv import load_dotenv
 import os, ssl
 
