@@ -11,6 +11,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.0",
+    "@mui/material": "^6.4.3",
     "@tailwindcss/vite": "^4.0.0",
     "@typescript-eslint/parser": "^8.21.0",
     "prettier-eslint": "^16.3.0",
