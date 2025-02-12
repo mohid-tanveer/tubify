@@ -255,7 +255,6 @@ async def login(
         # set cookies
         if response:
             set_auth_cookies(response, tokens)
-            print("Setting auth cookies:", tokens)
 
         return tokens
 
@@ -331,27 +330,22 @@ async def refresh_token(
 
 @app.get("/api/auth/verify-email/{token}")
 async def verify_email_endpoint(token: str):
-    print(f"Attempting to verify email with token: {token}")
-
     # check if token exists in database
     user_before = await database.fetch_one(
         "SELECT * FROM users WHERE email_verification_token = :token OR (email_verification_token IS NULL AND is_email_verified = TRUE)",
         values={"token": token},
     )
-    print(f"User before verification: {user_before}")
 
     if user_before and user_before["is_email_verified"]:
         return {"message": "Email already verified"}
 
     success = await verify_email(token, database)
-    print(f"Verification success: {success}")
 
     # check user state after verification
     user_after = await database.fetch_one(
         "SELECT * FROM users WHERE id = :id",
         values={"id": user_before["id"] if user_before else None},
     )
-    print(f"User after verification: {user_after}")
 
     if not success:
         raise HTTPException(
@@ -467,12 +461,9 @@ async def google_callback(code: str, response: Response):
             "grant_type": "authorization_code",
             "redirect_uri": f"{FRONTEND_URL}/auth/google/callback",
         }
-        print("Token request data:", token_data)
 
         try:
             token_response = await client.post(token_url, data=token_data)
-            print("Token response status:", token_response.status_code)
-            print("Token response body:", token_response.text)
 
             if token_response.status_code != 200:
                 raise HTTPException(
@@ -488,7 +479,6 @@ async def google_callback(code: str, response: Response):
                 )
 
             access_token = token_data["access_token"]
-            print(f"access_token: {access_token}")
 
             user_info = await client.get(
                 "https://www.googleapis.com/oauth2/v2/userinfo",
@@ -588,12 +578,12 @@ async def github_login():
     return {
         "url": f"https://github.com/login/oauth/authorize?"
         f"client_id={GITHUB_CLIENT_ID}&"
-        f"scope=user:email"
+        f"scope=read:user user:email"
     }
 
 
 @app.get("/api/auth/github/callback")
-async def github_callback(code: str):
+async def github_callback(code: str, response: Response):
     # in development mode, SSL verification is disabled
     verify_ssl = not DEV_MODE
     if DEV_MODE:
@@ -616,35 +606,28 @@ async def github_callback(code: str):
         user_response = await client.get(
             "https://api.github.com/user",
             headers={
-                "Authorization": f"token {access_token}",
+                "Authorization": f"Bearer {access_token}",
                 "Accept": "application/json",
             },
         )
         github_user = user_response.json()
 
-        # get user email
-        emails_response = await client.get(
-            "https://api.github.com/user/emails",
-            headers={
-                "Authorization": f"token {access_token}",
-                "Accept": "application/json",
-            },
-        )
-        primary_email = next(
-            email["email"] for email in emails_response.json() if email["primary"]
-        )
+        # Generate a placeholder email if we can't access the real email
+        github_username = github_user["login"]
+        github_id = str(github_user["id"])
+        placeholder_email = f"{github_username}.{github_id}@github.noreply.tubify.com"
 
         # create or update user
         user = await database.fetch_one(
             """
             SELECT * FROM users 
-            WHERE email = :email AND oauth_provider = 'github'
+            WHERE oauth_id = :oauth_id AND oauth_provider = 'github'
             """,
-            values={"email": primary_email},
+            values={"oauth_id": github_id},
         )
 
         if not user:
-            tokens = await create_tokens(github_user["login"])
+            tokens = await create_tokens(github_username)
             await database.execute(
                 """
                 INSERT INTO users (
@@ -658,16 +641,15 @@ async def github_callback(code: str):
                 )
                 """,
                 values={
-                    "email": primary_email,
-                    "username": github_user["login"],
-                    "oauth_id": str(github_user["id"]),
+                    "email": placeholder_email,
+                    "username": github_username,
+                    "oauth_id": github_id,
                     "access_token": tokens["access_token"],
                     "refresh_token": tokens["refresh_token"],
                     "access_expires": datetime.now(timezone.utc) + timedelta(hours=2),
                     "refresh_expires": datetime.now(timezone.utc) + timedelta(days=30),
                 },
             )
-            return tokens
         else:
             tokens = await create_tokens(user["username"])
             await database.execute(
@@ -688,7 +670,10 @@ async def github_callback(code: str):
                     "user_id": user["id"],
                 },
             )
-            return tokens
+
+        # Set auth cookies
+        set_auth_cookies(response, tokens)
+        return {"message": "Authentication successful"}
 
 
 @app.get("/api/auth/me")
