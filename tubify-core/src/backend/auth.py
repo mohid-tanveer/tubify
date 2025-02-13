@@ -9,7 +9,7 @@ import re
 from databases import Database
 import os
 from dotenv import load_dotenv
-from email_service import send_verification_email
+from email_service import send_verification_email, send_password_reset_email
 import httpx
 from database import database
 
@@ -420,6 +420,84 @@ async def verify_email_endpoint(token: str, database: Database = Depends(get_db)
             detail="Invalid or expired verification token",
         )
     return {"message": "Email verified successfully"}
+
+
+@router.post("/reset-password/request")
+async def request_password_reset(email: str):
+    user = await database.fetch_one(
+        "SELECT * FROM users WHERE email = :email", values={"email": email}
+    )
+
+    if not user:
+        # return success even if email doesn't exist to prevent email enumeration
+        return {
+            "message": "If an account exists with this email, you will receive a password reset link"
+        }
+
+    reset_token = generate_verification_token()
+
+    # store the reset token and its expiry
+    await database.execute(
+        """
+        UPDATE users 
+        SET password_reset_token = :token,
+            password_reset_expires = :expires
+        WHERE email = :email
+        """,
+        values={
+            "token": reset_token,
+            "expires": datetime.now(timezone.utc) + timedelta(hours=1),
+            "email": email,
+        },
+    )
+
+    # send password reset email
+    await send_password_reset_email(email, reset_token)
+
+    return {
+        "message": "If an account exists with this email, you will receive a password reset link"
+    }
+
+
+@router.post("/reset-password/{token}")
+async def reset_password(token: str, password: str):
+    # find user with valid reset token
+    user = await database.fetch_one(
+        """
+        SELECT * FROM users 
+        WHERE password_reset_token = :token 
+        AND password_reset_expires > :now
+        """,
+        values={"token": token, "now": datetime.now(timezone.utc)},
+    )
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired reset token",
+        )
+
+    # validate new password
+    if not validate_password(password):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password must be at least 8 characters and contain at least one letter, one number, and one special character",
+        )
+
+    # update password and clear reset token
+    hashed_password = get_password_hash(password)
+    await database.execute(
+        """
+        UPDATE users 
+        SET password_hash = :password_hash,
+            password_reset_token = NULL,
+            password_reset_expires = NULL
+        WHERE id = :user_id
+        """,
+        values={"password_hash": hashed_password, "user_id": user["id"]},
+    )
+
+    return {"message": "Password has been reset successfully"}
 
 
 @router.post("/resend-verification")
