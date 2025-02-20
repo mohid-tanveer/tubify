@@ -9,7 +9,7 @@ export function TubifyTitle() {
       {isHomePage ? (
         "Tubify"
       ) : (
-        <Link to="/" className="hover:text-slate-300">
+        <Link to="/" className="text-white text-4xl font-bold">
           Tubify
         </Link>
       )}
