@@ -28,7 +28,8 @@ const registerSchema = z.object({
   email: z.string().email("please enter a valid email address"),
   username: z.string()
     .min(3, "username must be at least 3 characters")
-    .max(50, "username must be less than 50 characters"),
+    .max(50, "username must be less than 50 characters")
+    .regex(/^[a-zA-Z0-9._-]+$/, "username can only contain letters, numbers, periods, underscores, and hyphens"),
   password: z.string()
     .min(8, "password must be at least 8 characters")
     .regex(

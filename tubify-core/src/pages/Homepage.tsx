@@ -7,7 +7,7 @@ import api from "@/lib/axios"
 import { Icons } from "@/components/icons"
 
 export default function Homepage() {
-  const { isAuthenticated, logout } = useContext(AuthContext)
+  const { isAuthenticated } = useContext(AuthContext)
   const [isSpotifyConnected, setIsSpotifyConnected] = useState<boolean>(false)
   const [isLoading, setIsLoading] = useState<boolean>(false)
 
@@ -56,6 +56,14 @@ export default function Homepage() {
         <div className="absolute top-0 left-0">
           <TubifyTitle />
         </div>
+        <div className="absolute top-0 right-0 p-10">
+          <Button
+            asChild
+            className="text-white hover:text-blue-500 transition-colors"
+          >
+            <Link to="/profile">Profile</Link>
+          </Button>
+        </div>
         <div className="flex-1 flex items-center justify-center">
           <div className="flex flex-col items-center gap-4">
             <p className="text-white">Welcome to Tubify!</p>
@@ -89,13 +97,6 @@ export default function Homepage() {
                 Connect Spotify
               </Button>
             )}
-            
-            <Button 
-              onClick={logout}
-              className="text-white hover:text-red-500 transition-colors"
-            >
-              Sign out
-            </Button>
           </div>
         </div>
       </div>  
