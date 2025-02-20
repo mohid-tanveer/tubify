@@ -1,6 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { useContext, useEffect, useState } from 'react'
-import { Homepage, AuthPage, EmailVerification, ResetPassword, RequestReset } from './pages'
+import { Homepage, AuthPage, EmailVerification, ResetPassword, RequestReset, WatchPage } from './pages'
 import { Spinner } from './components/ui/spinner'
 import { AuthContext } from './contexts/auth'
 import api from './lib/axios'
@@ -157,7 +157,7 @@ function App() {
           <Route path="/auth/github/callback" element={<AuthPage />} />
           {/* homepage is accessible to all, but shows different content based on auth status */}
           <Route path="/" element={<Homepage />} />
-
+          <Route path="/watch" element={<WatchPage />} /> 
           {/* protected routes (requires authentication) */}
           {/*<Route
             path=path
