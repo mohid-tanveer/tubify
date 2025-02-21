@@ -36,6 +36,13 @@ CREATE TABLE IF NOT EXISTS playlists (
     description TEXT,
     is_public BOOLEAN DEFAULT TRUE,
     spotify_playlist_id VARCHAR(255),
+);
+
+CREATE TABLE IF NOT EXISTS profiles (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    bio TEXT DEFAULT '',
+    profile_picture TEXT DEFAULT 'https://ui-avatars.com/api/?name=User',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -69,3 +76,4 @@ CREATE INDEX IF NOT EXISTS idx_playlists_user_id ON playlists(user_id);
 CREATE INDEX IF NOT EXISTS idx_playlists_public ON playlists(is_public);
 CREATE INDEX IF NOT EXISTS idx_songs_spotify_id ON songs(spotify_id);
 CREATE INDEX IF NOT EXISTS idx_playlist_songs_position ON playlist_songs(playlist_id, position);
+CREATE INDEX IF NOT EXISTS idx_profiles_user_id ON profiles(user_id);

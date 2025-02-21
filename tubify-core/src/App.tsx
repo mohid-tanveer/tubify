@@ -1,8 +1,9 @@
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { useContext, useEffect, useState } from 'react'
-import { Homepage, AuthPage, EmailVerification, ResetPassword, RequestReset } from './pages'
+import { Homepage, AuthPage, EmailVerification, ResetPassword, RequestReset, WatchPage, Profile } from './pages'
 import { Spinner } from './components/ui/spinner'
 import { AuthContext } from './contexts/auth'
+import { Toaster } from 'sonner'
 import api from './lib/axios'
 import './App.css'
 
@@ -146,6 +147,7 @@ function App() {
   return (
     <AuthContext.Provider value={{ isAuthenticated, isLoading, user, login, logout }}>
       <Router>
+        <Toaster richColors position="top-center" />
         <EmailVerificationBanner />
         <Routes>
           {/* public routes (users don't have to be signed in to access) */}
@@ -157,7 +159,7 @@ function App() {
           <Route path="/auth/github/callback" element={<AuthPage />} />
           {/* homepage is accessible to all, but shows different content based on auth status */}
           <Route path="/" element={<Homepage />} />
-
+          <Route path="/watch" element={<WatchPage />} /> 
           {/* protected routes (requires authentication) */}
           {/*<Route
             path=path
@@ -167,6 +169,14 @@ function App() {
               </ProtectedRoute>
             }
           />*/}
+          <Route
+            path='/profile'
+            element={
+              <ProtectedRoute>
+                <Profile />
+              </ProtectedRoute>
+            }
+          />
         </Routes>
       </Router>
     </AuthContext.Provider>

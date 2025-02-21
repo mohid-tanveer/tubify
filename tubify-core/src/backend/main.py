@@ -9,6 +9,7 @@ from fastapi_csrf_protect.exceptions import CsrfProtectError
 from auth import router as auth_router
 from spotify_auth import router as spotify_router
 from playlists import router as playlist_router
+from profile import router as profile_router
 from database import database, lifespan
 
 # load environment variables
@@ -49,6 +50,7 @@ context.load_cert_chain(os.getenv("CERT_FILE"), os.getenv("KEY_FILE"))
 app.include_router(auth_router)
 app.include_router(spotify_router)
 app.include_router(playlist_router)
+app.include_router(profile_router)
 
 if __name__ == "__main__":
     uvicorn.run(

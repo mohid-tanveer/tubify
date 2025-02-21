@@ -260,6 +260,20 @@ async def register(
     }
 
     await database.execute(query, values)
+    user_id = await database.execute(query, values)
+
+    # create profile for the new user
+    await database.execute(
+        """
+        INSERT INTO profiles (user_id, username, user_name)
+        VALUES (:user_id, :username, :username)
+        """,
+        values={
+            "user_id": user_id,
+            "username": user.username,
+            "user_name": user.username,
+        },
+    )
 
     # send verification email
     await send_verification_email(user.email, verification_token)
@@ -392,7 +406,7 @@ async def refresh_token(
 
         # set new cookies
         set_auth_cookies(response, tokens)
-        return {"message": "Tokens refreshed successfully"}
+        return tokens
 
     except Exception:
         raise HTTPException(
