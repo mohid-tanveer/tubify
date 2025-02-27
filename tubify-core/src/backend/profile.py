@@ -48,6 +48,227 @@ class Profile(BaseModel):
     bio: str = ""
 
 
+class FriendRequest(BaseModel):
+    username: str
+
+
+class Friend(BaseModel):
+    id: int
+    username: str
+    profile_picture: str
+
+
+@router.post("/add-friend/{username}", response_model=FriendRequest)
+async def add_friend(
+    username: str,
+    current_user: User = Depends(get_current_user),
+    database: Database = Depends(get_db),
+):
+    try:
+        # find the user to add as a friend
+        user_to_add = await database.fetch_one(
+            "SELECT id FROM users WHERE username = :username",
+            values={"username": username},
+        )
+        if not user_to_add:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found",
+            )
+
+        # check if a friend request already exists
+        existing_request = await database.fetch_one(
+            """
+            SELECT * FROM friend_requests 
+            WHERE sender_id = :sender_id AND receiver_id = :receiver_id
+            """,
+            values={"sender_id": current_user.id, "receiver_id": user_to_add["id"]},
+        )
+        if existing_request:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Friend request already sent",
+            )
+        # create a new friend request
+        await database.execute(
+            """
+            INSERT INTO friend_requests (sender_id, receiver_id, status)
+            VALUES (:sender_id, :receiver_id, 'pending')
+            """,
+            values={"sender_id": current_user.id, "receiver_id": user_to_add["id"]},
+        )
+
+        return FriendRequest(
+            sender_id=current_user.id, receiver_id=user_to_add["id"], status="pending"
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"error adding friend: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="failed to add friend",
+        )
+
+
+@router.get("/friends", response_model=List[Friend])
+async def get_friends(
+    current_user: User = Depends(get_current_user), database: Database = Depends(get_db)
+):
+    try:
+        friends = await database.fetch_all(
+            """
+            SELECT u.id, u.username, p.profile_picture 
+            FROM friendships f
+            JOIN users u ON (f.user_id = u.id OR f.friend_id = u.id)
+            LEFT JOIN profiles p ON p.user_id = u.id
+            WHERE (f.user_id = :user_id OR f.friend_id = :user_id) AND u.id != :user_id
+            """,
+            values={"user_id": current_user.id},
+        )
+
+        return [
+            Friend(
+                id=friend["id"],
+                username=friend["username"],
+                profile_picture=friend["profile_picture"],
+            )
+            for friend in friends
+        ]
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"error fetching friends: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="failed to fetch friends",
+        )
+
+
+@router.post("/remove-friend/{friend_id}", response_model=Friend)
+async def remove_friend(
+    friend_id: int,
+    current_user: User = Depends(get_current_user),
+    database: Database = Depends(get_db),
+):
+    try:
+        # remove the friend from the friendships table
+        await database.execute(
+            """
+            DELETE FROM friendships 
+            WHERE (user_id = :user_id AND friend_id = :friend_id) 
+               OR (user_id = :friend_id AND friend_id = :user_id)
+            """,
+            values={"user_id": current_user.id, "friend_id": friend_id},
+        )
+
+        return {"id": friend_id}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"error removing friend: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="failed to remove friend",
+        )
+
+
+@router.get("/friend-requests", response_model=List[FriendRequest])
+async def get_friend_requests(
+    current_user: User = Depends(get_current_user), database: Database = Depends(get_db)
+):
+    try:
+        requests = await database.fetch_all(
+            """
+            SELECT sender_id, receiver_id, status 
+            FROM friend_requests 
+            WHERE receiver_id = :user_id
+            """,
+            values={"user_id": current_user.id},
+        )
+
+        return [
+            FriendRequest(
+                sender_id=request["sender_id"],
+                receiver_id=request["receiver_id"],
+                status=request["status"],
+            )
+            for request in requests
+        ]
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"error fetching friend requests: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="failed to fetch friend requests",
+        )
+
+
+@router.post("/accept-friend-request/{sender_id}", response_model=Friend)
+async def accept_friend_request(
+    sender_id: int,
+    current_user: User = Depends(get_current_user),
+    database: Database = Depends(get_db),
+):
+    try:
+        # update the friend request status to accepted
+        await database.execute(
+            """
+            UPDATE friend_requests 
+            SET status = 'accepted' 
+            WHERE sender_id = :sender_id AND receiver_id = :receiver_id
+            """,
+            values={"sender_id": sender_id, "receiver_id": current_user.id},
+        )
+
+        # add the friendship to the friendships table
+        await database.execute(
+            """
+            INSERT INTO friendships (user_id, friend_id)
+            VALUES (:user_id, :friend_id)
+            """,
+            values={"user_id": current_user.id, "friend_id": sender_id},
+        )
+
+        # remove the friend request
+        await database.execute(
+            """
+            DELETE FROM friend_requests 
+            WHERE sender_id = :sender_id AND receiver_id = :receiver_id
+            """,
+            values={"sender_id": sender_id, "receiver_id": current_user.id},
+        )
+        friend = await database.fetch_one(
+            """
+            SELECT u.id, u.username, p.profile_picture 
+            FROM users u
+            LEFT JOIN profiles p ON p.user_id = u.id
+            WHERE u.id = :user_id
+            """,
+            values={"user_id": sender_id},
+        )
+
+        return Friend(
+            id=friend["id"],
+            username=friend["username"],
+            profile_picture=friend["profile_picture"],
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"error accepting friend request: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="failed to accept friend request",
+        )
+
+
 def get_default_avatar_url(username: str) -> str:
     # create a default avatar url with the user's name
     encoded_name = urllib.parse.quote(username)
