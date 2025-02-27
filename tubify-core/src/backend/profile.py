@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, status, Depends
 from pydantic import BaseModel, Field, field_validator
-from typing import Optional
+from typing import Optional, List
 from databases import Database
 from auth import get_current_user, User
 from database import database
@@ -56,6 +56,11 @@ class Friend(BaseModel):
     id: int
     username: str
     profile_picture: str
+
+
+# get database instance
+def get_db():
+    return database
 
 
 @router.post("/add-friend/{username}", response_model=FriendRequest)
