@@ -1,7 +1,6 @@
 from fastapi import APIRouter, HTTPException, status, Depends
 from pydantic import BaseModel, Field, field_validator
 from typing import Optional, List
-from databases import Database
 from auth import get_current_user, User
 from database import database
 import urllib.parse
@@ -49,6 +48,9 @@ class Profile(BaseModel):
 
 
 class FriendRequest(BaseModel):
+    sender_id: int
+    receiver_id: int
+    status: str
     username: str
 
 
@@ -64,13 +66,9 @@ def get_db():
 
 
 @router.post("/add-friend/{username}", response_model=FriendRequest)
-async def add_friend(
-    username: str,
-    current_user: User = Depends(get_current_user),
-    database: Database = Depends(get_db),
-):
+async def add_friend(username: str, current_user: User = Depends(get_current_user)):
+    print(f"adding friend: {username}")
     try:
-        # find the user to add as a friend
         user_to_add = await database.fetch_one(
             "SELECT id FROM users WHERE username = :username",
             values={"username": username},
@@ -81,7 +79,6 @@ async def add_friend(
                 detail="User not found",
             )
 
-        # check if a friend request already exists
         existing_request = await database.fetch_one(
             """
             SELECT * FROM friend_requests 
@@ -94,7 +91,7 @@ async def add_friend(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Friend request already sent",
             )
-        # create a new friend request
+
         await database.execute(
             """
             INSERT INTO friend_requests (sender_id, receiver_id, status)
@@ -107,20 +104,18 @@ async def add_friend(
             sender_id=current_user.id, receiver_id=user_to_add["id"], status="pending"
         )
 
-    except HTTPException:
-        raise
+    except HTTPException as e:
+        raise e
     except Exception as e:
         print(f"error adding friend: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="failed to add friend",
+            detail=f"failed to add friend: {str(e)}",
         )
 
 
 @router.get("/friends", response_model=List[Friend])
-async def get_friends(
-    current_user: User = Depends(get_current_user), database: Database = Depends(get_db)
-):
+async def get_friends(current_user: User = Depends(get_current_user)):
     try:
         friends = await database.fetch_all(
             """
@@ -153,11 +148,7 @@ async def get_friends(
 
 
 @router.post("/remove-friend/{friend_id}", response_model=Friend)
-async def remove_friend(
-    friend_id: int,
-    current_user: User = Depends(get_current_user),
-    database: Database = Depends(get_db),
-):
+async def remove_friend(friend_id: int, current_user: User = Depends(get_current_user)):
     try:
         # remove the friend from the friendships table
         await database.execute(
@@ -182,15 +173,14 @@ async def remove_friend(
 
 
 @router.get("/friend-requests", response_model=List[FriendRequest])
-async def get_friend_requests(
-    current_user: User = Depends(get_current_user), database: Database = Depends(get_db)
-):
+async def get_friend_requests(current_user: User = Depends(get_current_user)):
     try:
         requests = await database.fetch_all(
             """
-            SELECT sender_id, receiver_id, status 
-            FROM friend_requests 
-            WHERE receiver_id = :user_id
+            SELECT fr.sender_id, fr.receiver_id, fr.status, u.username 
+            FROM friend_requests fr
+            JOIN users u ON fr.sender_id = u.id
+            WHERE fr.receiver_id = :user_id
             """,
             values={"user_id": current_user.id},
         )
@@ -200,6 +190,7 @@ async def get_friend_requests(
                 sender_id=request["sender_id"],
                 receiver_id=request["receiver_id"],
                 status=request["status"],
+                username=request["username"],  # Include the username
             )
             for request in requests
         ]
@@ -216,9 +207,7 @@ async def get_friend_requests(
 
 @router.post("/accept-friend-request/{sender_id}", response_model=Friend)
 async def accept_friend_request(
-    sender_id: int,
-    current_user: User = Depends(get_current_user),
-    database: Database = Depends(get_db),
+    sender_id: int, current_user: User = Depends(get_current_user)
 ):
     try:
         # update the friend request status to accepted
@@ -286,9 +275,7 @@ def get_db():
 
 
 @router.get("", response_model=Profile)
-async def get_profile(
-    current_user: User = Depends(get_current_user), database: Database = Depends(get_db)
-):
+async def get_profile(current_user: User = Depends(get_current_user)):
     try:
         # fetch profile from database
         profile = await database.fetch_one(
@@ -336,9 +323,7 @@ async def get_profile(
 
 @router.put("", response_model=Profile)
 async def update_profile(
-    profile_update: ProfileUpdate,
-    current_user: User = Depends(get_current_user),
-    database: Database = Depends(get_db),
+    profile_update: ProfileUpdate, current_user: User = Depends(get_current_user)
 ):
     try:
         # start transaction
