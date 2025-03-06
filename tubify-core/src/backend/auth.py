@@ -12,6 +12,7 @@ from dotenv import load_dotenv
 from email_service import send_verification_email, send_password_reset_email
 import httpx
 from database import database
+import urllib.parse
 
 load_dotenv()
 
@@ -247,6 +248,7 @@ async def register(
                       access_token, refresh_token, access_token_expires_at, refresh_token_expires_at)
     VALUES (:username, :email, :password_hash, :verification_token,
             :access_token, :refresh_token, :access_expires, :refresh_expires)
+    RETURNING id
     """
     values = {
         "username": user.username,
@@ -259,19 +261,23 @@ async def register(
         "refresh_expires": datetime.now(timezone.utc) + timedelta(days=30),
     }
 
-    await database.execute(query, values)
-    user_id = await database.execute(query, values)
+    # execute the query and get the user ID
+    result = await database.fetch_one(query, values)
+    user_id = result["id"]
 
     # create profile for the new user
+    default_avatar = (
+        f"https://ui-avatars.com/api/?name={urllib.parse.quote(user.username)}"
+    )
     await database.execute(
         """
-        INSERT INTO profiles (user_id, username, user_name)
-        VALUES (:user_id, :username, :username)
+        INSERT INTO profiles (user_id, bio, profile_picture)
+        VALUES (:user_id, :bio, :profile_picture)
         """,
         values={
             "user_id": user_id,
-            "username": user.username,
-            "user_name": user.username,
+            "bio": "",
+            "profile_picture": default_avatar,
         },
     )
 
@@ -417,23 +423,43 @@ async def refresh_token(
 
 @router.get("/verify-email/{token}")
 async def verify_email_endpoint(token: str, database: Database = Depends(get_db)):
-    # check if token exists in database
-    user_before = await database.fetch_one(
-        "SELECT * FROM users WHERE email_verification_token = :token OR (email_verification_token IS NULL AND is_email_verified = TRUE)",
+    # first check if the token exists
+    user = await database.fetch_one(
+        "SELECT * FROM users WHERE email_verification_token = :token",
         values={"token": token},
     )
 
-    if user_before and user_before["is_email_verified"]:
-        return {"message": "Email already verified"}
-
-    success = await verify_email(token, database)
-
-    if not success:
+    # if no user found with this token
+    if not user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid or expired verification token",
         )
-    return {"message": "Email verified successfully"}
+
+    # if user is already verified
+    if user["is_email_verified"]:
+        return {"message": "Email already verified"}
+
+    try:
+        # update the user's verification status
+        await database.execute(
+            """
+            UPDATE users 
+            SET is_email_verified = TRUE, 
+                email_verification_token = NULL 
+            WHERE email_verification_token = :token
+            """,
+            values={"token": token},
+        )
+
+        # return success message
+        return {"message": "Email verified successfully"}
+    except Exception as e:
+        print(f"Error verifying email: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to verify email",
+        )
 
 
 @router.post("/reset-password/request")

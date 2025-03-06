@@ -1,4 +1,4 @@
-import { Loader2 } from "lucide-react"
+import { Loader2, Music } from "lucide-react"
 import { FaGithub, FaGoogle, FaSpotify } from "react-icons/fa"
 
 export const Icons = {
@@ -6,4 +6,5 @@ export const Icons = {
   gitHub: FaGithub,
   google: FaGoogle,
   spotify: FaSpotify,
+  music: Music,
 } 

@@ -60,7 +60,9 @@ export default function ResetPassword() {
       await api.post(`/api/auth/reset-password/${token}?password=${encodeURIComponent(formData.password)}`)
       setStatus('success')
     } catch (error) {
-      console.error('Password reset failed:', error)
+      if (process.env.NODE_ENV === "development") {
+        console.error('Password reset failed:', error)
+      }
       setStatus('error')
     } finally {
       setIsLoading(false)

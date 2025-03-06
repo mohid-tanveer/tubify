@@ -1,14 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse
-from sqlalchemy.ext.asyncio import AsyncSession
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
 import os
 from typing import Optional
-from databases import Database
 from auth import get_current_user, User
 from database import database
+from fastapi import status
 
 # create router
 router = APIRouter(prefix="/api/spotify", tags=["spotify"])
@@ -47,6 +46,43 @@ sp_oauth = SpotifyOAuth(
     scope=" ".join(SPOTIFY_SCOPES),
     show_dialog=True,  # force user to approve every time
 )
+
+
+# get spotify client for user
+async def get_spotify_client(user: User = Depends(get_current_user)) -> spotipy.Spotify:
+    spotify_creds = await database.fetch_one(
+        "SELECT * FROM spotify_credentials WHERE user_id = :user_id",
+        values={"user_id": user.id},
+    )
+
+    if not spotify_creds:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="spotify account not connected",
+        )
+
+    if datetime.now(timezone.utc) >= spotify_creds["token_expires_at"]:
+        token_info = sp_oauth.refresh_access_token(spotify_creds["refresh_token"])
+        await database.execute(
+            """
+            UPDATE spotify_credentials 
+            SET access_token = :access_token,
+                refresh_token = :refresh_token,
+                token_expires_at = :expires_at,
+                last_used_at = CURRENT_TIMESTAMP
+            WHERE user_id = :user_id
+            """,
+            values={
+                "access_token": token_info["access_token"],
+                "refresh_token": token_info["refresh_token"],
+                "expires_at": datetime.now(timezone.utc)
+                + timedelta(seconds=token_info["expires_in"]),
+                "user_id": user.id,
+            },
+        )
+        return spotipy.Spotify(auth=token_info["access_token"])
+
+    return spotipy.Spotify(auth=spotify_creds["access_token"])
 
 
 # get database instance
@@ -147,3 +183,50 @@ async def spotify_disconnect(current_user: User = Depends(get_current_user)):
         {"user_id": current_user.id},
     )
     return {"message": "spotify disconnected successfully"}
+
+
+@router.get("/playlists")
+async def get_spotify_playlists(
+    current_user: User = Depends(get_current_user),
+    sp: spotipy.Spotify = Depends(get_spotify_client),
+):
+    """get user's spotify playlists"""
+    try:
+        # get user's playlists
+        results = sp.current_user_playlists(limit=50)
+        playlists = results["items"]
+
+        # get more playlists if there are more
+        while results["next"]:
+            results = sp.next(results)
+            playlists.extend(results["items"])
+
+        # get already imported spotify playlist ids
+        imported_playlists = await database.fetch_all(
+            """
+            SELECT spotify_playlist_id 
+            FROM playlists 
+            WHERE user_id = :user_id AND spotify_playlist_id IS NOT NULL
+            """,
+            values={"user_id": current_user.id},
+        )
+
+        # create a set of already imported spotify playlist ids for faster lookup
+        imported_playlist_ids = {
+            playlist["spotify_playlist_id"] for playlist in imported_playlists
+        }
+
+        # format playlists and filter out already imported ones
+        return [
+            {
+                "id": playlist["id"],
+                "name": playlist["name"],
+                "description": playlist.get("description"),
+                "is_imported": playlist["id"] in imported_playlist_ids,
+            }
+            for playlist in playlists
+        ]
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"failed to fetch spotify playlists: {str(e)}"
+        )

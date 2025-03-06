@@ -36,6 +36,10 @@ CREATE TABLE IF NOT EXISTS playlists (
     description TEXT,
     is_public BOOLEAN DEFAULT TRUE,
     spotify_playlist_id VARCHAR(255),
+    image_url TEXT,
+    public_id VARCHAR(26) UNIQUE NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS profiles (
@@ -49,13 +53,15 @@ CREATE TABLE IF NOT EXISTS profiles (
 
 CREATE TABLE IF NOT EXISTS songs (
     id SERIAL PRIMARY KEY,
-    spotify_id VARCHAR(255) NOT NULL,
+    spotify_id VARCHAR(255) NOT NULL UNIQUE,
     name VARCHAR(255) NOT NULL,
     artist VARCHAR(255) NOT NULL,
     album VARCHAR(255),
     duration_ms INTEGER,
     preview_url TEXT,
     album_art_url TEXT,
+    spotify_uri TEXT,
+    spotify_url TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 

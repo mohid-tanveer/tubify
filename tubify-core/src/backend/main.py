@@ -10,6 +10,9 @@ from auth import router as auth_router
 from spotify_auth import router as spotify_router
 from playlists import router as playlist_router
 from profile import router as profile_router
+from songs import router as songs_router
+from users import router as users_router
+from public import router as public_router
 from database import database, lifespan
 
 # load environment variables
@@ -51,6 +54,9 @@ app.include_router(auth_router)
 app.include_router(spotify_router)
 app.include_router(playlist_router)
 app.include_router(profile_router)
+app.include_router(songs_router)
+app.include_router(users_router)
+app.include_router(public_router)
 
 if __name__ == "__main__":
     uvicorn.run(

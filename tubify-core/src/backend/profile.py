@@ -50,8 +50,8 @@ class Profile(BaseModel):
 
 def get_default_avatar_url(username: str) -> str:
     # create a default avatar url with the user's name
-    encoded_name = urllib.parse.quote(username)
-    return f"https://ui-avatars.com/api/?name={encoded_name}&size=200"
+    encoded_username = urllib.parse.quote(username)
+    return f"https://ui-avatars.com/api/?name={encoded_username}"
 
 
 # get database instance
@@ -64,42 +64,53 @@ async def get_profile(
     current_user: User = Depends(get_current_user), database: Database = Depends(get_db)
 ):
     try:
-        # fetch profile from database
+        # check if profile exists
+        profile_exists = await database.fetch_one(
+            """
+            SELECT 1 FROM profiles WHERE user_id = :user_id
+            """,
+            values={"user_id": current_user.id},
+        )
+
+        # if profile doesn't exist, create it
+        if not profile_exists:
+            default_avatar = get_default_avatar_url(current_user.username)
+            await database.execute(
+                """
+                INSERT INTO profiles (user_id, bio, profile_picture)
+                VALUES (:user_id, :default_bio, :profile_picture)
+                """,
+                values={
+                    "user_id": current_user.id,
+                    "default_bio": "",
+                    "profile_picture": default_avatar,
+                },
+            )
+
+        # fetch profile
         profile = await database.fetch_one(
             """
-            select u.username as user_name, p.bio
-            from users u
-            left join profiles p on p.user_id = u.id
-            where u.id = :user_id
+            SELECT u.username as user_name, p.bio, p.profile_picture
+            FROM users u
+            LEFT JOIN profiles p ON p.user_id = u.id
+            WHERE u.id = :user_id
             """,
             values={"user_id": current_user.id},
         )
 
         if not profile:
-            # create default profile if it doesn't exist
-            await database.execute(
-                """
-                insert into profiles (user_id, bio)
-                values (:user_id, :default_bio)
-                """,
-                values={
-                    "user_id": current_user.id,
-                    "default_bio": "",
-                },
-            )
-            return Profile(
-                user_name=current_user.username,
-                profile_picture=get_default_avatar_url(current_user.username),
-                bio="",
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="profile not found"
             )
 
-        # always generate avatar url from username
-        return Profile(
-            user_name=profile["user_name"],
-            profile_picture=get_default_avatar_url(profile["user_name"]),
-            bio=profile["bio"] or "",
-        )
-
+        return {
+            "user_name": profile["user_name"],
+            "bio": profile["bio"] or "",
+            "profile_picture": profile["profile_picture"]
+            or get_default_avatar_url(profile["user_name"]),
+        }
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"error fetching profile: {str(e)}")
         raise HTTPException(
@@ -115,9 +126,31 @@ async def update_profile(
     database: Database = Depends(get_db),
 ):
     try:
-        # start transaction
         async with database.transaction():
-            # update username in users table if provided
+            # check if profile exists
+            profile_exists = await database.fetch_one(
+                """
+                SELECT 1 FROM profiles WHERE user_id = :user_id
+                """,
+                values={"user_id": current_user.id},
+            )
+
+            # if profile doesn't exist, create it
+            if not profile_exists:
+                default_avatar = get_default_avatar_url(current_user.username)
+                await database.execute(
+                    """
+                    INSERT INTO profiles (user_id, bio, profile_picture)
+                    VALUES (:user_id, :default_bio, :profile_picture)
+                    """,
+                    values={
+                        "user_id": current_user.id,
+                        "default_bio": "",
+                        "profile_picture": default_avatar,
+                    },
+                )
+
+            # update username if provided
             if profile_update.username is not None:
                 try:
                     await database.execute(
@@ -127,8 +160,8 @@ async def update_profile(
                         WHERE id = :user_id
                         """,
                         values={
-                            "username": profile_update.username,
                             "user_id": current_user.id,
+                            "username": profile_update.username,
                         },
                     )
                 except Exception as e:
@@ -158,7 +191,7 @@ async def update_profile(
             # fetch updated profile
             updated_profile = await database.fetch_one(
                 """
-                SELECT u.username as user_name, p.bio
+                SELECT u.username as user_name, p.bio, p.profile_picture
                 FROM users u
                 LEFT JOIN profiles p ON p.user_id = u.id
                 WHERE u.id = :user_id
@@ -166,35 +199,12 @@ async def update_profile(
                 values={"user_id": current_user.id},
             )
 
-            if not updated_profile:
-                # if profile doesn't exist, create it
-                await database.execute(
-                    """
-                    INSERT INTO profiles (user_id, bio)
-                    VALUES (:user_id, :default_bio)
-                    """,
-                    values={
-                        "user_id": current_user.id,
-                        "default_bio": "",
-                    },
-                )
-                updated_profile = await database.fetch_one(
-                    """
-                    SELECT u.username as user_name, p.bio
-                    FROM users u
-                    LEFT JOIN profiles p ON p.user_id = u.id
-                    WHERE u.id = :user_id
-                    """,
-                    values={"user_id": current_user.id},
-                )
-
-            # return profile with generated avatar url
-            return Profile(
-                user_name=updated_profile["user_name"],
-                profile_picture=get_default_avatar_url(updated_profile["user_name"]),
-                bio=updated_profile["bio"] or "",
-            )
-
+            return {
+                "user_name": updated_profile["user_name"],
+                "bio": updated_profile["bio"] or "",
+                "profile_picture": updated_profile["profile_picture"]
+                or get_default_avatar_url(updated_profile["user_name"]),
+            }
     except HTTPException:
         raise
     except Exception as e:

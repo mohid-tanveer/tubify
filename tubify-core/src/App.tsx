@@ -1,10 +1,11 @@
-import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { RouterProvider, createBrowserRouter, Navigate, useLocation, redirect, LoaderFunction, Outlet } from 'react-router-dom'
 import { useContext, useEffect, useState } from 'react'
-import { Homepage, AuthPage, EmailVerification, ResetPassword, RequestReset, WatchPage, Profile } from './pages'
+import { Homepage, AuthPage, EmailVerification, ResetPassword, RequestReset, WatchPage, Profile, Playlists, PlaylistDetail, UserProfile, UserPlaylists, PublicPlaylistDetail } from './pages'
 import { Spinner } from './components/ui/spinner'
 import { AuthContext } from './contexts/auth'
 import { Toaster } from 'sonner'
 import api from './lib/axios'
+import { playlistsLoader, playlistDetailLoader, userProfileLoader, userPlaylistsLoader, publicPlaylistDetailLoader } from './loaders'
 import './App.css'
 
 interface User {
@@ -12,6 +13,139 @@ interface User {
   username: string
   email: string
   is_email_verified: boolean
+}
+
+// loader function to check spotify status
+const spotifyAuthLoader: LoaderFunction = async () => {
+  try {
+    const response = await api.get('/api/spotify/status')
+    return { isSpotifyConnected: response.data.is_connected }
+  } catch {
+    return { isSpotifyConnected: false }
+  }
+}
+
+// loader function to check auth and spotify status for playlists
+const fullAuthLoader: LoaderFunction = async () => {
+  try {
+    // check auth status
+    const authResponse = await api.get('/api/auth/me')
+    if (!authResponse.data) {
+      return redirect('/auth')
+    }
+
+    // check spotify connection
+    const spotifyResponse = await api.get('/api/spotify/status')
+    if (!spotifyResponse.data.is_connected) {
+      return redirect('/?spotify_required=true')
+    }
+
+    return null
+  } catch {
+    // if any error occurs during auth or spotify check, redirect to auth
+    return redirect('/auth')
+  }
+}
+
+// create router with all routes
+const router = createBrowserRouter([
+  {
+    path: "/",
+    element: <Layout />,
+    children: [
+      {
+        path: "/",
+        element: <Homepage />,
+        loader: spotifyAuthLoader,
+      },
+      {
+        path: "/auth",
+        element: <AuthPage />,
+      },
+      {
+        path: "/verify-email/:token",
+        element: <EmailVerification />,
+      },
+      {
+        path: "/reset-password",
+        element: <RequestReset />,
+      },
+      {
+        path: "/reset-password/:token",
+        element: <ResetPassword />,
+      },
+      {
+        path: "/auth/google/callback",
+        element: <AuthPage />,
+      },
+      {
+        path: "/auth/github/callback",
+        element: <AuthPage />,
+      },
+      {
+        path: "/watch",
+        element: <WatchPage />,
+        loader: fullAuthLoader,
+      },
+      {
+        path: "/profile",
+        element: <ProtectedRoute><Profile /></ProtectedRoute>,
+      },
+      {
+        path: "/users/:username",
+        element: <ProtectedRoute><UserProfile /></ProtectedRoute>,
+        loader: userProfileLoader,
+      },
+      {
+        path: "/users/:username/playlists",
+        element: <ProtectedRoute><UserPlaylists /></ProtectedRoute>,
+        loader: userPlaylistsLoader,
+      },
+      {
+        path: "/playlists",
+        element: <ProtectedRoute><Playlists /></ProtectedRoute>,
+        loader: async (args) => {
+          // first check auth and spotify status
+          const result = await fullAuthLoader(args);
+          if (result) return result; // if it returns a redirect, pass it through
+          
+          // if auth and spotify checks pass, load playlists
+          return playlistsLoader();
+        },
+      },
+      {
+        path: "/playlists/:id",
+        element: <ProtectedRoute><PlaylistDetail /></ProtectedRoute>,
+        loader: async (args) => {
+          // first check auth and spotify status
+          const result = await fullAuthLoader(args);
+          if (result) return result; // if it returns a redirect, pass it through
+          
+          // if auth and spotify checks pass, load playlist detail
+          return playlistDetailLoader(args);
+        },
+      },
+      {
+        path: "/public/playlists/:id",
+        element: <PublicPlaylistDetail />,
+        loader: publicPlaylistDetailLoader,
+      },
+    ],
+  },
+])
+
+function Layout() {
+  return (
+    <>
+      <Toaster 
+        richColors 
+        position="top-center" 
+        duration={3000}
+      />
+      <EmailVerificationBanner />
+      <Outlet />
+    </>
+  )
 }
 
 function EmailVerificationBanner() {
@@ -34,7 +168,9 @@ function EmailVerificationBanner() {
       await api.post('/api/auth/resend-verification')
       setResendStatus('success')
     } catch (error) {
-      console.error('Failed to resend verification email:', error)
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Failed to resend verification email:', error)
+      }
       setResendStatus('error')
     } finally {
       setIsResending(false)
@@ -136,7 +272,9 @@ function App() {
       setIsAuthenticated(false)
       setUser(null)
     } catch (error) {
-      console.error('Logout failed:', error)
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Logout failed:', error)
+      }
     }
   }
 
@@ -146,39 +284,7 @@ function App() {
 
   return (
     <AuthContext.Provider value={{ isAuthenticated, isLoading, user, login, logout }}>
-      <Router>
-        <Toaster richColors position="top-center" />
-        <EmailVerificationBanner />
-        <Routes>
-          {/* public routes (users don't have to be signed in to access) */}
-          <Route path="/auth" element={<AuthPage />} />
-          <Route path="/verify-email/:token" element={<EmailVerification />} />
-          <Route path="/reset-password" element={<RequestReset />} />
-          <Route path="/reset-password/:token" element={<ResetPassword />} />
-          <Route path="/auth/google/callback" element={<AuthPage />} />
-          <Route path="/auth/github/callback" element={<AuthPage />} />
-          {/* homepage is accessible to all, but shows different content based on auth status */}
-          <Route path="/" element={<Homepage />} />
-          <Route path="/watch" element={<WatchPage />} /> 
-          {/* protected routes (requires authentication) */}
-          {/*<Route
-            path=path
-            element={
-              <ProtectedRoute>
-                <Page />
-              </ProtectedRoute>
-            }
-          />*/}
-          <Route
-            path='/profile'
-            element={
-              <ProtectedRoute>
-                <Profile />
-              </ProtectedRoute>
-            }
-          />
-        </Routes>
-      </Router>
+      <RouterProvider router={router} />
     </AuthContext.Provider>
   )
 }

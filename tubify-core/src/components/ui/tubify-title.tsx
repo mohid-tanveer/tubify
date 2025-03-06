@@ -5,7 +5,7 @@ export function TubifyTitle() {
   const isHomePage = location.pathname === "/"
 
   return (
-    <h1 className="text-white text-4xl font-bold p-10 -my-2">
+    <h1 className="text-white text-4xl font-bold p-10 -my-2" style={{letterSpacing: "-3px"}}>
       {isHomePage ? (
         "Tubify"
       ) : (

@@ -2,6 +2,16 @@
 @tailwind components;
 @tailwind utilities;
 
+/* custom styles */
+/* override dnd-kit cursor styles */
+[data-dnd-draggable] {
+  cursor: default !important;
+}
+
+[data-dnd-draggable]:active {
+  cursor: default !important;
+}
+
 /* ... */
 
 :root {
@@ -39,7 +49,6 @@ body {
 h1 {
   font-size: 3.2em;
   font-weight: 600;
-  letter-spacing: -3px;
   line-height: 1.1;
   margin: 0;
 }

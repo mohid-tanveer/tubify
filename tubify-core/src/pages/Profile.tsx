@@ -5,10 +5,11 @@ import api from "@/lib/axios"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { Pencil, X, Check } from "lucide-react"
+import { Pencil, X, Check, Music } from "lucide-react"
 import { toast } from "sonner"
 import { z } from "zod"
 import { Icons } from "@/components/icons"
+import { useNavigate } from "react-router-dom"
 
 const profileSchema = z.object({
   username: z.string()
@@ -40,6 +41,8 @@ export default function Profile() {
   const [isCheckingUsername, setIsCheckingUsername] = useState(false)
   const [usernameError, setUsernameError] = useState<string | null>(null)
   const usernameCheckTimeout = useRef<NodeJS.Timeout>()
+  const navigate = useNavigate()
+  const [isSpotifyConnected, setIsSpotifyConnected] = useState(false)
 
   const fetchProfile = async () => {
     try {
@@ -50,8 +53,19 @@ export default function Profile() {
         username: response.data.user_name,
         bio: response.data.bio,
       })
+      
+      // check spotify connection
+      try {
+        const spotifyResponse = await api.get("/api/spotify/status")
+        console.log("spotifyResponse", spotifyResponse.data)
+        setIsSpotifyConnected(spotifyResponse.data.is_connected)
+      } catch {
+        setIsSpotifyConnected(false)
+      }
     } catch (error) {
-      console.error("failed to fetch profile:", error)
+      if (process.env.NODE_ENV === "development") {
+        console.error("failed to fetch profile:", error)
+      }
       toast.error("Failed to load profile")
     } finally {
       setIsLoading(false)
@@ -89,7 +103,9 @@ export default function Profile() {
           setUsernameError(null)
         }
       } catch (error) {
-        console.error("Failed to check username:", error)
+        if (process.env.NODE_ENV === "development") {
+          console.error("Failed to check username:", error)
+        }
       } finally {
         setIsCheckingUsername(false)
       }
@@ -141,12 +157,21 @@ export default function Profile() {
       setIsEditing(false)
       toast.success("Profile updated successfully")
     } catch (error) {
-      console.error("failed to update profile:", error)
+      if (process.env.NODE_ENV === "development") {
+        console.error("failed to update profile:", error)
+      }
       toast.error("Failed to update profile")
     } finally {
       setIsSaving(false)
     }
   }
+
+  const handleLogout = async () => {
+    // clear all local storage
+    localStorage.clear();
+    
+    await logout();
+  };
 
   if (!isAuthenticated) {
     return (
@@ -275,12 +300,33 @@ export default function Profile() {
                 </Button>
               </div>
               <p className="text-white text-center">{profile.bio || "No bio yet"}</p>
-              <Button
-                onClick={logout}
-                className="text-white hover:text-red-500 transition-colors"
-              >
-                Sign out
-              </Button>
+              
+              <div className="flex flex-col gap-4 w-full">
+                {isSpotifyConnected ? (
+                  <Button
+                    onClick={() => navigate("/playlists")}
+                    className="flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 w-full"
+                  >
+                    <Music className="w-4 h-4" />
+                    My Playlists
+                  </Button>
+                ) : (
+                  <Button
+                    className="flex items-center justify-center gap-2 bg-gray-600 hover:bg-gray-700 cursor-not-allowed w-full"
+                    onClick={() => toast.error("Please connect Spotify to access playlists")}
+                  >
+                    <Music className="w-4 h-4" />
+                    Connect Spotify to Create Playlists
+                  </Button>
+                )}
+                
+                <Button
+                  onClick={handleLogout}
+                  className="text-white transition-colors w-full"
+                >
+                  Sign out
+                </Button>
+              </div>
             </>
           )}
         </div>

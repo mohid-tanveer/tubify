@@ -1,10 +1,9 @@
 import { useContext, useEffect, useState } from "react"
 import { AuthContext } from "@/contexts/auth"
-import { TubifyTitle } from "@/components/ui/tubify-title"
 import { Button } from "@/components/ui/button"
-import { Icons } from "@/components/icons"
 import api from "@/lib/axios"
-import { useNavigate } from "react-router-dom"
+import { useNavigate, useLoaderData } from "react-router-dom"
+import { clearPlaylistsCache, setPlaylistsCache } from "@/loaders/playlist-loaders"
 import {
   Dialog,
   DialogContent,
@@ -12,11 +11,11 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogFooter,
 } from "@/components/ui/dialog"
 import {
   Form,
   FormControl,
-  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -28,7 +27,8 @@ import { Switch } from "@/components/ui/switch"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
-import { Loader2, Lock, Globe, Music, Plus } from "lucide-react"
+import { Lock, Globe, Music, Plus, Loader2, ArrowLeft } from "lucide-react"
+import { toast } from "sonner"
 
 // form schema for creating/editing playlists
 const playlistFormSchema = z.object({
@@ -40,45 +40,45 @@ const playlistFormSchema = z.object({
 
 type PlaylistFormValues = z.infer<typeof playlistFormSchema>
 
-// song type
-interface Song {
-  id: number
-  spotify_id: string
-  name: string
-  artist: string
-  album?: string
-  duration_ms?: number
-  preview_url?: string
-  album_art_url?: string
-  created_at: string
-}
-
 // playlist type
 interface Playlist {
   id: number
+  public_id: string
   name: string
   description?: string
   is_public: boolean
   spotify_playlist_id?: string
+  image_url?: string
   created_at: string
   updated_at: string
-  songs: Song[]
+  song_count: number
 }
 
 interface SpotifyPlaylist {
   id: string
   name: string
+  description?: string
+  is_imported?: boolean
 }
 
-export default function PlaylistsPage() {
+interface PlaylistsLoaderData {
+  playlists: Playlist[]
+  isSpotifyConnected: boolean
+  spotifyPlaylists: SpotifyPlaylist[]
+}
+
+export default function Playlists() {
   const { isAuthenticated } = useContext(AuthContext)
   const navigate = useNavigate()
-  const [playlists, setPlaylists] = useState<Playlist[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [isSpotifyConnected, setIsSpotifyConnected] = useState(false)
-  const [spotifyPlaylists, setSpotifyPlaylists] = useState<SpotifyPlaylist[]>([])
+  
+  const { playlists: initialPlaylists, isSpotifyConnected, spotifyPlaylists } = useLoaderData() as PlaylistsLoaderData
+  
+  
+  const [playlists, setPlaylists] = useState<Playlist[]>(initialPlaylists)
   const [isCreating, setIsCreating] = useState(false)
   const [selectedSpotifyPlaylist, setSelectedSpotifyPlaylist] = useState<string>("")
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [showImportedPlaylists, setShowImportedPlaylists] = useState(false)
 
   // form for creating new playlists
   const form = useForm<PlaylistFormValues>({
@@ -90,142 +90,170 @@ export default function PlaylistsPage() {
     },
   })
 
-  // check spotify connection and fetch playlists on mount
+  // update form when spotify playlist is selected
+  useEffect(() => {
+    if (selectedSpotifyPlaylist) {
+      const playlist = spotifyPlaylists.find(p => p.id === selectedSpotifyPlaylist)
+      if (playlist) {
+        form.setValue("name", playlist.name)
+        form.setValue("description", playlist.description || "")
+      }
+    } else {
+      form.reset()
+    }
+  }, [selectedSpotifyPlaylist, spotifyPlaylists, form])
+
+  // redirect if not authenticated
   useEffect(() => {
     if (!isAuthenticated) {
       navigate("/auth")
-      return
     }
-
-    const init = async () => {
-      try {
-        // check spotify connection
-        const statusResponse = await api.get("/api/spotify/status")
-        setIsSpotifyConnected(statusResponse.data.is_connected)
-
-        // fetch tubify playlists
-        const playlistsResponse = await api.get("/api/playlists")
-        setPlaylists(playlistsResponse.data)
-
-        // fetch spotify playlists if connected
-        if (statusResponse.data.is_connected) {
-          const spotifyResponse = await api.get("/api/spotify/playlists")
-          setSpotifyPlaylists(spotifyResponse.data)
-        }
-      } catch (error) {
-        console.error("failed to initialize playlists page:", error)
-      } finally {
-        setIsLoading(false)
-      }
-    }
-
-    init()
   }, [isAuthenticated, navigate])
 
   const handleCreatePlaylist = async (values: PlaylistFormValues) => {
     try {
       setIsCreating(true)
+      
       const response = await api.post("/api/playlists", {
         ...values,
         spotify_playlist_id: selectedSpotifyPlaylist || undefined,
       })
-      setPlaylists([response.data, ...playlists])
+      
+      // clear the cache when a new playlist is created
+      clearPlaylistsCache()
+      
+      // close the dialog
+      setDialogOpen(false)
+      
+      // reset form
       form.reset()
       setSelectedSpotifyPlaylist("")
+      
+      // fetch updated playlists instead of reloading the page
+      try {
+        const { data } = await api.get("/api/playlists")
+        setPlaylists(data)
+        const spotifyResponse = await api.get("/api/spotify/playlists")
+        let spotifyPlaylists = []
+        spotifyPlaylists = spotifyResponse.data
+        
+        // update the cache with fresh data
+        const cacheData = {
+          playlists: data,
+          isSpotifyConnected: true,
+          spotifyPlaylists,
+        }
+        
+        // update the cache
+        setPlaylistsCache(cacheData)
+        
+        toast.success("playlist created successfully")
+      } catch {
+        // if fetching fails, still show the new playlist
+        setPlaylists([response.data, ...playlists])
+      }
     } catch (error) {
-      console.error("failed to create playlist:", error)
+      if (process.env.NODE_ENV === 'development') {
+        console.error("failed to create playlist:", error)
+      }
+      toast.error("failed to create playlist")
     } finally {
       setIsCreating(false)
     }
   }
 
-  if (isLoading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-white" />
-      </div>
-    )
-  }
-
   return (
-    <div className="min-h-screen bg-black p-8">
-      <div className="mb-8">
-        <TubifyTitle />
-      </div>
+    <div className="min-h-screen bg-gradient-to-b from-slate-900 to-black pb-20">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="pt-6 pb-4">
+          <Button
+            variant="default"
+            size="sm"
+            className="bg-zinc-900 text-slate-400 hover:text-white"
+            onClick={() => navigate("/")}
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back
+          </Button>
+        </div>
 
-      <div className="mx-auto max-w-4xl">
-        <div className="mb-8 flex items-center justify-between">
-          <h1 className="text-2xl font-semibold text-white">Your Playlists</h1>
-          
-          <Dialog>
+        <div className="mb-8">
+          <h1 className="text-2xl md:text-3xl font-bold text-white">my playlists</h1>
+          <p className="mt-2 text-slate-400">create and manage your music playlists</p>
+        </div>
+
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {/* create new playlist card */}
+          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
-              <Button className="bg-green-600 hover:bg-green-700">
-                <Plus className="mr-2 h-4 w-4" />
-                Create Playlist
-              </Button>
+              <div className="flex h-full min-h-[200px] cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-slate-700 bg-slate-900/50 p-6 text-center transition-colors hover:border-slate-500 hover:bg-slate-900">
+                <Plus className="mb-2 h-8 w-8 text-slate-400" />
+                <h3 className="text-lg font-medium text-white">create new playlist</h3>
+                <p className="mt-1 text-sm text-slate-400">start a fresh playlist from scratch</p>
+              </div>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Create New Playlist</DialogTitle>
+                <DialogTitle>create new playlist</DialogTitle>
                 <DialogDescription>
-                  Create a new playlist from scratch or import from Spotify
+                  <br/>
+                  fill out the details below to create a new playlist. you can add songs later.
                 </DialogDescription>
               </DialogHeader>
-
               <Form {...form}>
-                <form
-                  onSubmit={form.handleSubmit(handleCreatePlaylist)}
-                  className="space-y-4"
-                >
+                <form onSubmit={form.handleSubmit(handleCreatePlaylist)} className="space-y-4">
                   <FormField
                     control={form.control}
                     name="name"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Name</FormLabel>
+                        <FormLabel>name</FormLabel>
                         <FormControl>
-                          <Input {...field} placeholder="my awesome playlist" />
+                          <Input 
+                            placeholder="my awesome playlist" 
+                            {...field} 
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
-
+                  
                   <FormField
                     control={form.control}
                     name="description"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Description (optional)</FormLabel>
+                        <FormLabel>description (optional)</FormLabel>
                         <FormControl>
-                          <Textarea
-                            {...field}
-                            placeholder="describe your playlist..."
+                          <Textarea 
+                            placeholder="a collection of my favorite songs" 
+                            {...field} 
                           />
                         </FormControl>
-                        <FormMessage />
                       </FormItem>
                     )}
                   />
-
+                  
                   <FormField
                     control={form.control}
                     name="is_public"
                     render={({ field }) => (
-                      <FormItem className="flex items-center justify-between rounded-lg border p-4">
-                        <div className="space-y-0.5">
-                          <FormLabel className="text-base">
-                            Public Playlist
-                          </FormLabel>
-                          <FormDescription>
-                            Anyone can view public playlists
-                          </FormDescription>
-                        </div>
+                      <FormItem className="flex flex-row items-center gap-2 space-y-0">
                         <FormControl>
-                          <Switch
-                            checked={field.value}
-                            onCheckedChange={field.onChange}
-                          />
+                          <div className="flex items-center space-x-2">
+                            <Switch 
+                              id="is-public" 
+                              checked={field.value} 
+                              onCheckedChange={field.onChange}
+                            />
+                            <label 
+                              htmlFor="is-public" 
+                              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                            >
+                              make playlist public
+                            </label>
+                          </div>
                         </FormControl>
                       </FormItem>
                     )}
@@ -233,79 +261,124 @@ export default function PlaylistsPage() {
 
                   {isSpotifyConnected && spotifyPlaylists.length > 0 && (
                     <div className="space-y-2">
-                      <FormLabel>Import from Spotify (optional)</FormLabel>
-                      <select
-                        value={selectedSpotifyPlaylist}
-                        onChange={(e) => setSelectedSpotifyPlaylist(e.target.value)}
-                        className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        <option value="">Select a Spotify playlist</option>
-                        {spotifyPlaylists.map((playlist) => (
-                          <option key={playlist.id} value={playlist.id}>
-                            {playlist.name}
-                          </option>
-                        ))}
-                      </select>
+                      <FormLabel>import from spotify (optional)</FormLabel>
+                      <FormControl>
+                        <select
+                          value={selectedSpotifyPlaylist}
+                          onChange={(e) => setSelectedSpotifyPlaylist(e.target.value)}
+                          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          <option value="">select a spotify playlist</option>
+                          {spotifyPlaylists
+                            .filter(playlist => showImportedPlaylists || !playlist.is_imported)
+                            .map((playlist) => (
+                            <option 
+                              key={playlist.id} 
+                              value={playlist.id}
+                              disabled={playlist.is_imported}
+                            >
+                              {playlist.name}{playlist.is_imported ? ' (already imported)' : ''}
+                            </option>
+                          ))}
+                        </select>
+                      </FormControl>
+                      <div className="flex items-center space-x-2 mt-2">
+                        <Switch 
+                          id="show-imported" 
+                          checked={showImportedPlaylists} 
+                          onCheckedChange={(checked) => setShowImportedPlaylists(checked === true)}
+                        />
+                        <label 
+                          htmlFor="show-imported" 
+                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                        >
+                          show already imported playlists
+                        </label>
+                      </div>
                     </div>
                   )}
-
-                  <Button
-                    type="submit"
-                    className="w-full"
-                    disabled={isCreating}
-                  >
-                    {isCreating && (
-                      <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />
-                    )}
-                    Create Playlist
-                  </Button>
+                  
+                  <DialogFooter className="mt-6">
+                    <Button type="submit" disabled={isCreating}>
+                      {isCreating ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          creating...
+                        </>
+                      ) : (
+                        "create playlist"
+                      )}
+                    </Button>
+                  </DialogFooter>
                 </form>
               </Form>
             </DialogContent>
           </Dialog>
-        </div>
 
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {/* playlist cards */}
           {playlists.map((playlist) => (
             <div
               key={playlist.id}
-              className="group relative overflow-hidden rounded-lg border border-slate-800 bg-black p-4 transition-all hover:border-slate-600"
-              onClick={() => navigate(`/playlists/${playlist.id}`)}
+              className="group relative overflow-hidden rounded-lg border border-slate-800 bg-slate-900/50 p-4 transition-all hover:border-slate-600"
+              onClick={() => navigate(`/playlists/${playlist.public_id}`)}
             >
-              <div className="mb-2 flex items-center justify-between">
-                <h3 className="font-medium text-white">{playlist.name}</h3>
-                {playlist.is_public ? (
-                  <Globe className="h-4 w-4 text-slate-400" />
-                ) : (
-                  <Lock className="h-4 w-4 text-slate-400" />
-                )}
+              <div className="flex items-start gap-4">
+                {/* playlist image */}
+                <div className="h-16 w-16 flex-shrink-0 overflow-hidden rounded-md bg-slate-800">
+                  {playlist.image_url ? (
+                    <img
+                      src={playlist.image_url}
+                      alt={playlist.name}
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center">
+                      <Music className="h-8 w-8 text-slate-600" />
+                    </div>
+                  )}
+                </div>
+                
+                {/* playlist info */}
+                <div className="flex-1 overflow-hidden">
+                  <div className="flex items-center gap-2">
+                    <h3 className="truncate text-lg font-medium text-white">
+                      {playlist.name}
+                    </h3>
+                    {playlist.is_public ? (
+                      <Globe className="h-3 w-3 flex-shrink-0 text-slate-400" />
+                    ) : (
+                      <Lock className="h-3 w-3 flex-shrink-0 text-slate-400" />
+                    )}
+                  </div>
+                  
+                  {playlist.description && (
+                    <p className="mt-1 truncate text-sm text-slate-400">
+                      {playlist.description}
+                    </p>
+                  )}
+                  
+                  <p className="mt-2 text-xs text-slate-500">
+                    {playlist.song_count} {playlist.song_count === 1 ? "song" : "songs"}
+                  </p>
+                </div>
               </div>
               
-              {playlist.description && (
-                <p className="mb-4 text-sm text-slate-400 line-clamp-2">
-                  {playlist.description}
-                </p>
-              )}
-
-              <div className="flex items-center text-sm text-slate-500">
-                <Music className="mr-1 h-4 w-4" />
-                {playlist.songs.length} songs
-              </div>
-
-              <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 opacity-0 transition-opacity group-hover:opacity-100">
-                <Button variant="outline" className="bg-black text-white">
-                  View Playlist
+              <div className="absolute inset-0 flex items-center justify-center bg-black/70 opacity-0 transition-opacity group-hover:opacity-100">
+                <Button variant="outline" size="sm" className="bg-black text-white">
+                  view playlist
                 </Button>
               </div>
             </div>
           ))}
         </div>
 
-        {playlists.length === 0 && (
-          <div className="mt-8 text-center text-slate-400">
-            <Music className="mx-auto h-12 w-12 opacity-50" />
-            <p className="mt-2">no playlists yet</p>
-            <p className="text-sm">create one to get started!</p>
+        {playlists.length === 0 && !isCreating && (
+          <div className="mt-8 rounded-lg border border-slate-800 bg-slate-900/20 p-8 text-center">
+            <Music className="mx-auto h-12 w-12 text-slate-600" />
+            <h3 className="mt-4 text-xl font-medium text-white">no playlists yet</h3>
+            <p className="mt-2 text-slate-400">
+              create your first playlist to get started
+            </p>
           </div>
         )}
       </div>
