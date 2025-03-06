@@ -1,6 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { useContext, useEffect, useState } from 'react'
-import { Homepage, AuthPage, EmailVerification, ResetPassword, RequestReset, WatchPage, Profile } from './pages'
+import { Homepage, AuthPage, EmailVerification, ResetPassword, RequestReset, WatchPage, Profile, Search } from './pages'
 import { Spinner } from './components/ui/spinner'
 import { AuthContext } from './contexts/auth'
 import { Toaster } from 'sonner'
@@ -160,6 +160,7 @@ function App() {
           {/* homepage is accessible to all, but shows different content based on auth status */}
           <Route path="/" element={<Homepage />} />
           <Route path="/watch" element={<WatchPage />} /> 
+          <Route path="/search" element={<Search />} />
           {/* protected routes (requires authentication) */}
           {/*<Route
             path=path

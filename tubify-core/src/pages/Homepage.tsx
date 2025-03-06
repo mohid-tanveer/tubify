@@ -67,6 +67,13 @@ export default function Homepage() {
         <div className="flex-1 flex items-center justify-center">
           <div className="flex flex-col items-center gap-4">
             <p className="text-white">Welcome to Tubify!</p>
+
+            <Button
+              asChild
+              className="bg-black hover:bg-neutral-900 border-slate-800 hover:border-slate-600 hover:text-slate-300 text-white"
+            >
+              <Link to="/search">Search</Link>
+            </Button>
             
             {isSpotifyConnected ? (
               <Button
