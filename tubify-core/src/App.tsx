@@ -5,7 +5,7 @@ import { Spinner } from './components/ui/spinner'
 import { AuthContext } from './contexts/auth'
 import { Toaster } from 'sonner'
 import api from './lib/axios'
-import { playlistsLoader, playlistDetailLoader, userProfileLoader, userPlaylistsLoader, publicPlaylistDetailLoader } from './loaders'
+import { playlistsLoader, playlistDetailLoader, userProfileLoader, userPlaylistsLoader, publicPlaylistDetailLoader, profileLoader } from './loaders'
 import './App.css'
 
 interface User {
@@ -84,12 +84,13 @@ const router = createBrowserRouter([
       },
       {
         path: "/watch",
-        element: <WatchPage />,
+        element: <ProtectedRoute><WatchPage /></ProtectedRoute>,
         loader: fullAuthLoader,
       },
       {
         path: "/profile",
         element: <ProtectedRoute><Profile /></ProtectedRoute>,
+        loader: profileLoader,
       },
       {
         path: "/users/:username",

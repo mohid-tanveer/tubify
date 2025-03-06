@@ -9,7 +9,8 @@ import { Pencil, X, Check, Music } from "lucide-react"
 import { toast } from "sonner"
 import { z } from "zod"
 import { Icons } from "@/components/icons"
-import { useNavigate } from "react-router-dom"
+import { useNavigate, useLoaderData } from "react-router-dom"
+import { ProfileData } from "@/loaders/user-loaders"
 
 const profileSchema = z.object({
   username: z.string()
@@ -25,59 +26,85 @@ interface Profile {
   bio: string
 }
 
+interface Friend {
+  id: number;
+  username: string;
+  profile_picture: string;
+}
+
+interface FriendRequest {
+  sender_id: number;
+  receiver_id: number;
+  status: string;
+  username: string;
+}
+
 export default function Profile() {
   const { isAuthenticated, logout } = useContext(AuthContext)
-  const [profile, setProfile] = useState<Profile | null>(null)
-  const [isLoading, setIsLoading] = useState<boolean>(false)
+  const { profile, friends, friendRequests, isSpotifyConnected } = useLoaderData() as ProfileData
   const [isEditing, setIsEditing] = useState(false)
   const [editForm, setEditForm] = useState<{
     username: string
     bio: string
   }>({
-    username: "",
-    bio: "",
+    username: profile?.user_name || "",
+    bio: profile?.bio || "",
   })
   const [isSaving, setIsSaving] = useState(false)
   const [isCheckingUsername, setIsCheckingUsername] = useState(false)
   const [usernameError, setUsernameError] = useState<string | null>(null)
   const usernameCheckTimeout = useRef<NodeJS.Timeout>()
   const navigate = useNavigate()
-  const [isSpotifyConnected, setIsSpotifyConnected] = useState(false)
+  const [searchUsername, setSearchUsername] = useState("")
+  const [isAddingFriend, setIsAddingFriend] = useState(false)
+  const [localFriends, setLocalFriends] = useState<Friend[]>(friends)
+  const [localFriendRequests, setLocalFriendRequests] = useState<FriendRequest[]>(friendRequests)
 
-  const fetchProfile = async () => {
+  const handleAddFriend = async () => {
     try {
-      setIsLoading(true)
-      const response = await api.get("/api/profile")
-      setProfile(response.data)
-      setEditForm({
-        username: response.data.user_name,
-        bio: response.data.bio,
-      })
-      
-      // check spotify connection
-      try {
-        const spotifyResponse = await api.get("/api/spotify/status")
-        console.log("spotifyResponse", spotifyResponse.data)
-        setIsSpotifyConnected(spotifyResponse.data.is_connected)
-      } catch {
-        setIsSpotifyConnected(false)
-      }
-    } catch (error) {
-      if (process.env.NODE_ENV === "development") {
-        console.error("failed to fetch profile:", error)
-      }
-      toast.error("Failed to load profile")
+      setIsAddingFriend(true)
+      await api.post(`/api/profile/add-friend/${searchUsername}`)
+      toast.success("Friend request sent!")
+      setSearchUsername("")
+      // refresh friend requests
+      const response = await api.get("/api/profile/friend-requests")
+      setLocalFriendRequests(response.data)
+    } catch {
+      toast.error("Failed to send friend request.")
     } finally {
-      setIsLoading(false)
+      setIsAddingFriend(false)
     }
   }
 
-  useEffect(() => {
-    if (isAuthenticated) {
-      fetchProfile()
+  const handleAcceptFriendRequest = async (senderId: number) => {
+    try {
+      await api.post(`/api/profile/accept-friend-request/${senderId}`)
+      toast.success("Friend request accepted!")
+      // refresh friends and friend requests
+      const [friendsResponse, requestsResponse] = await Promise.all([
+        api.get("/api/profile/friends"),
+        api.get("/api/profile/friend-requests")
+      ])
+      setLocalFriends(friendsResponse.data)
+      setLocalFriendRequests(requestsResponse.data)
+    } catch {
+      toast.error("Failed to accept friend request.")
     }
-  }, [isAuthenticated])
+  }
 
+  const handleRemoveFriend = async (friendId: number) => {
+    try {
+      await api.post(`/api/profile/remove-friend/${friendId}`)
+      toast.success("Friend removed!")
+      // refresh friends
+      const response = await api.get("/api/profile/friends")
+      setLocalFriends(response.data)
+    } catch {
+      toast.error("Failed to remove friend.")
+    }
+  }
+
+  // username check effect
   useEffect(() => {
     if (!isEditing) return
 
@@ -152,8 +179,9 @@ export default function Profile() {
       }
 
       setIsSaving(true)
-      const response = await api.put("/api/profile", editForm)
-      setProfile(response.data)
+      await api.put("/api/profile", editForm)
+      // update local profile state
+      navigate(".", { replace: true }) // refresh the page to get updated data
       setIsEditing(false)
       toast.success("Profile updated successfully")
     } catch (error) {
@@ -168,10 +196,10 @@ export default function Profile() {
 
   const handleLogout = async () => {
     // clear all local storage
-    localStorage.clear();
+    localStorage.clear()
     
-    await logout();
-  };
+    await logout()
+  }
 
   if (!isAuthenticated) {
     return (
@@ -181,19 +209,6 @@ export default function Profile() {
         </div>
         <div className="flex-1 flex items-center justify-center">
           <p className="text-white">Please sign in to view your profile.</p>
-        </div>
-      </div>
-    )
-  }
-
-  if (isLoading) {
-    return (
-      <div className="overflow-hidden flex flex-col min-h-screen">
-        <div className="absolute top-0 left-0">
-          <TubifyTitle />
-        </div>
-        <div className="flex-1 flex items-center justify-center">
-          <p className="text-white">Loading...</p>
         </div>
       </div>
     )
@@ -300,6 +315,62 @@ export default function Profile() {
                 </Button>
               </div>
               <p className="text-white text-center">{profile.bio || "No bio yet"}</p>
+
+              <div className="flex flex-col items-center gap-4">
+                  <h2 className="text-white text-xl">Friends</h2>
+                  <ul className="text-white">
+                    {localFriends.map((friend) => (
+                      <li key={friend.id} className="flex items-center gap-2">
+                        <img
+                          src={friend.profile_picture}
+                          alt={friend.username}
+                          className="w-8 h-8 rounded-full"
+                        />
+                        <span>{friend.username}</span>
+                        <Button
+                          onClick={() => handleRemoveFriend(friend.id)}
+                          className="text-red-500 hover:text-red-700 transition-colors"
+                        >
+                          Remove
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                  <h2 className="text-white text-xl">Friend Requests</h2>
+                  <ul className="text-white">
+                    {localFriendRequests.map((request) => (
+                      <li
+                        key={request.sender_id}
+                        className="flex items-center gap-2"
+                      >
+                        <span>{request.username}</span>
+                        <Button
+                          onClick={() =>
+                            handleAcceptFriendRequest(request.sender_id)
+                          }
+                          className="text-green-500 hover:text-green-700 transition-colors"
+                        >
+                          Accept
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={searchUsername}
+                      onChange={(e) => setSearchUsername(e.target.value)}
+                      placeholder="Search username"
+                      className="text-black"
+                    />
+                    <Button
+                      onClick={handleAddFriend}
+                      disabled={isAddingFriend}
+                      className="text-white hover:text-blue-500 transition-colors"
+                    >
+                      Add Friend
+                    </Button>
+                  </div>
+                </div>
               
               <div className="flex flex-col gap-4 w-full">
                 {isSpotifyConnected ? (

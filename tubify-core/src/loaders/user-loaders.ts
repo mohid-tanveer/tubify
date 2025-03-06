@@ -51,6 +51,26 @@ interface PublicPlaylistData {
   playlist: PublicPlaylist
 }
 
+export interface ProfileData {
+  profile: {
+    user_name: string
+    profile_picture: string
+    bio: string
+  } | null
+  friends: Array<{
+    id: number
+    username: string
+    profile_picture: string
+  }>
+  friendRequests: Array<{
+    sender_id: number
+    receiver_id: number
+    status: string
+    username: string
+  }>
+  isSpotifyConnected: boolean
+}
+
 // cache keys
 const USER_PROFILE_CACHE_KEY = import.meta.env.VITE_USER_PROFILE_CACHE_KEY
 const USER_PROFILE_CACHE_TIMESTAMP_KEY = import.meta.env
@@ -337,6 +357,63 @@ export async function publicPlaylistDetailLoader({
     return {
       playlist: null,
       error: "failed to load playlist. it may not exist or may not be public.",
+    }
+  }
+}
+
+export const profileLoader = async (): Promise<ProfileData> => {
+  try {
+    // fetch profile, friends, friend requests, and spotify connection status in parallel
+    const [
+      profileResponse,
+      friendsResponse,
+      friendRequestsResponse,
+      spotifyResponse,
+    ] = await Promise.allSettled([
+      api.get("/api/profile"),
+      api.get("/api/profile/friends"),
+      api.get("/api/profile/friend-requests"),
+      api.get("/api/spotify/status"),
+    ])
+
+    // handle profile response
+    const profile =
+      profileResponse.status === "fulfilled" ? profileResponse.value.data : null
+
+    // handle friends response
+    const friends =
+      friendsResponse.status === "fulfilled" ? friendsResponse.value.data : []
+
+    // handle friend requests response
+    const friendRequests =
+      friendRequestsResponse.status === "fulfilled"
+        ? friendRequestsResponse.value.data
+        : []
+
+    // handle spotify connection status
+    const isSpotifyConnected =
+      spotifyResponse.status === "fulfilled"
+        ? spotifyResponse.value.data.is_connected
+        : false
+
+    return {
+      profile,
+      friends,
+      friendRequests,
+      isSpotifyConnected,
+    }
+  } catch (error) {
+    // log error in development
+    if (process.env.NODE_ENV === "development") {
+      console.error("profile loader error:", error)
+    }
+
+    // if there's an error, return default values
+    return {
+      profile: null,
+      friends: [],
+      friendRequests: [],
+      isSpotifyConnected: false,
     }
   }
 }

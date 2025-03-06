@@ -17,6 +17,23 @@ CREATE TABLE IF NOT EXISTS users (
     last_login TIMESTAMP WITH TIME ZONE
 );
 
+CREATE TABLE IF NOT EXISTS friendships (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    friend_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, friend_id)
+);
+
+CREATE TABLE IF NOT EXISTS friend_requests (
+    id SERIAL PRIMARY KEY,
+    sender_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    receiver_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    status VARCHAR(20) DEFAULT 'pending',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(sender_id, receiver_id)
+);
+
 CREATE TABLE IF NOT EXISTS spotify_credentials (
     id SERIAL PRIMARY KEY,
     user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
@@ -43,8 +60,7 @@ CREATE TABLE IF NOT EXISTS playlists (
 );
 
 CREATE TABLE IF NOT EXISTS profiles (
-    id SERIAL PRIMARY KEY,
-    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
     bio TEXT DEFAULT '',
     profile_picture TEXT DEFAULT 'https://ui-avatars.com/api/?name=User',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -83,3 +99,7 @@ CREATE INDEX IF NOT EXISTS idx_playlists_public ON playlists(is_public);
 CREATE INDEX IF NOT EXISTS idx_songs_spotify_id ON songs(spotify_id);
 CREATE INDEX IF NOT EXISTS idx_playlist_songs_position ON playlist_songs(playlist_id, position);
 CREATE INDEX IF NOT EXISTS idx_profiles_user_id ON profiles(user_id);
+CREATE INDEX IF NOT EXISTS idx_friendships_user_id ON friendships(user_id);
+CREATE INDEX IF NOT EXISTS idx_friendships_friend_id ON friendships(friend_id);
+CREATE INDEX IF NOT EXISTS idx_friend_requests_sender_id ON friend_requests(sender_id);
+CREATE INDEX IF NOT EXISTS idx_friend_requests_receiver_id ON friend_requests(receiver_id);

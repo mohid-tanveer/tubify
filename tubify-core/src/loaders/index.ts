@@ -3,4 +3,5 @@ export {
   userProfileLoader,
   userPlaylistsLoader,
   publicPlaylistDetailLoader,
-} from "./userplaylist-loaders"
+  profileLoader,
+} from "./user-loaders"
