@@ -1,10 +1,10 @@
-import { Link } from "react-router-dom";
-import { TubifyTitle } from "@/components/ui/tubify-title";
-import YouTube from "react-youtube";
-import { Button } from "@/components/ui/button";
+import { Link } from "react-router-dom"
+import { TubifyTitle } from "@/components/ui/tubify-title"
+import YouTube, { YouTubeEvent } from "react-youtube"
+import { Button } from "@/components/ui/button"
 
 export default function WatchPage() {
-  const videoId = "dQw4w9WgXcQ";
+  const videoId = "dQw4w9WgXcQ"
 
   const opts = {
     height: '390',
@@ -13,12 +13,12 @@ export default function WatchPage() {
       // https://developers.google.com/youtube/player_parameters
       autoplay: 1,
     },
-  };
+  }
 
-  const onReady = (event: any) => {
+  const onReady = (event: YouTubeEvent) => {
     // access to player in all event handlers via event.target
-    event.target.pauseVideo();
-  };
+    event.target.pauseVideo()
+  }
 
   return (
     <div className="overflow-hidden flex flex-col min-h-screen">
@@ -41,5 +41,5 @@ export default function WatchPage() {
         </div>
       </div>
     </div>
-  );
+  )
 }

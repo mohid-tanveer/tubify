@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { TubifyTitle } from "@/components/ui/tubify-title";
-import { Button } from "@/components/ui/button";
 
 export default function Search() {
     const [searchQuery, setSearchQuery] = useState("");

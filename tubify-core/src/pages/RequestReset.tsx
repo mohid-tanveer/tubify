@@ -20,7 +20,9 @@ export default function RequestReset() {
       await api.post(`/api/auth/reset-password/request?email=${encodeURIComponent(email)}`)
       setStatus('success')
     } catch (error) {
-      console.error('Password reset request failed:', error)
+      if (process.env.NODE_ENV === "development") {
+        console.error('Password reset request failed:', error)
+      }
       setStatus('error')
     } finally {
       setIsLoading(false)

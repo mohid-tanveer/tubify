@@ -3,9 +3,8 @@ import { Input } from "@/components/ui/input"
 import { Icons } from "@/components/icons"
 import { useState, useContext, useEffect, useRef } from "react"
 import { useNavigate, useLocation, Link } from "react-router-dom"
-import api from "@/lib/axios"
+import api, { AxiosError } from "@/lib/axios"
 import { z } from "zod"
-import { AxiosError } from "axios"
 import { AuthContext } from "@/contexts/auth"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -18,6 +17,7 @@ import {
   FormMessage,
 } from "@/components/ui/form"
 import { Eye, EyeOff } from "lucide-react"
+import { toast } from 'sonner'
 
 const loginSchema = z.object({
   email: z.string().min(1, "email or username is required"),
@@ -46,22 +46,23 @@ interface UserAuthFormProps extends React.HTMLAttributes<HTMLDivElement> {
 
 export default function AuthPage() {
   const [authType, setAuthType] = useState<"login" | "register">("login")
-  const { login } = useContext(AuthContext)
   const location = useLocation()
   const navigate = useNavigate()
-  const [errors, setErrors] = useState<Record<string, string>>({})
-  const [isProcessingOAuth, setIsProcessingOAuth] = useState(false)
-  const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const { login } = useContext(AuthContext)
+  const [errors, setErrors] = useState<{
+    login?: string
+    register?: string
+    oauth?: string
+  }>({})
   const processingRef = useRef(false)
 
   useEffect(() => {
-    // handle OAuth callback
-    const params = new URLSearchParams(location.search)
-    const code = params.get("code")
-    const error = params.get("error")
+    // extract code from URL
+    const urlParams = new URLSearchParams(location.search)
+    const code = urlParams.get("code")
+    const error = urlParams.get("error")
 
     if (error) {
-      console.error("OAuth error:", error)
       setErrors(prev => ({
         ...prev,
         oauth: `Authentication failed: ${error}`
@@ -74,40 +75,51 @@ export default function AuthPage() {
       const handleOAuthCallback = async () => {
         if (processingRef.current) return
         processingRef.current = true
-        setIsProcessingOAuth(true)
+        
+        // create a single toast with an ID
+        const toastId = toast.loading("Processing authentication...", {
+          id: "oauth-processing"
+        })
 
         try {
-          // Clear the URL to prevent reuse of the code
+          // clear the URL to prevent reuse of the code
           window.history.replaceState({}, document.title, "/auth")
           
           const provider = location.pathname.includes("google")
             ? "google"
             : "github"
             
-          console.log(`Attempting ${provider} OAuth callback with code:`, code)
           const response = await api.get(`/api/auth/${provider}/callback`, {
             params: { code }
           })
-          
-          console.log("OAuth callback response:", response.data)
+
           if (response.data?.message === "Authentication successful") {
-            setIsAuthenticated(true)
+            // dismiss the loading toast
+            toast.dismiss(toastId)
             login()
             navigate("/")
           } else {
             throw new Error("Authentication response was not successful")
           }
         } catch (error) {
-          console.error("OAuth callback failed:", error)
+          // dismiss the loading toast
+          toast.dismiss(toastId)
+          
+          if (process.env.NODE_ENV === "development") {
+            console.error("OAuth callback failed:", error)
+          }
           const axiosError = error as AxiosError<{ detail: string }>
           const errorMessage = axiosError.response?.data?.detail || "Authentication failed. Please try again."
-          console.error("Detailed error:", errorMessage)
+          if (process.env.NODE_ENV === "development") {
+            console.error("Detailed error:", errorMessage)
+          }
           setErrors(prev => ({
             ...prev,
             oauth: errorMessage
           }))
         } finally {
-          setIsProcessingOAuth(false)
+          // dismiss the loading toast if it's still showing
+          toast.dismiss("oauth-processing")
           processingRef.current = false
         }
       }
@@ -121,16 +133,6 @@ export default function AuthPage() {
       {errors?.oauth && (
         <div className="absolute top-4 right-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
           {errors.oauth}
-        </div>
-      )}
-      {isProcessingOAuth && !isAuthenticated && (
-        <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-          <div className="bg-white p-4 rounded-lg">
-            <div className="flex justify-center">
-              <Icons.spinner className="h-8 w-8 animate-spin text-black" />
-            </div>
-            <p className="mt-2 text-black">Processing authentication...</p>
-          </div>
         </div>
       )}
       <div className="hidden lg:block bg-zinc-900">
@@ -205,7 +207,7 @@ export default function AuthPage() {
   )
 }
 
-function UserAuthForm({ type, ...props }: UserAuthFormProps) {
+function UserAuthForm({ type, ...props }: UserAuthFormProps): JSX.Element {
   const [isLoading, setIsLoading] = useState<boolean>(false)
   const [showPassword, setShowPassword] = useState(false)
   const [isCheckingUsername, setIsCheckingUsername] = useState(false)
@@ -249,7 +251,9 @@ function UserAuthForm({ type, ...props }: UserAuthFormProps) {
           })
         }
       } catch (error) {
-        console.error("Failed to check username:", error)
+        if (process.env.NODE_ENV === "development") {
+          console.error("Failed to check username:", error)
+        }
       } finally {
         setIsCheckingUsername(false)
       }
@@ -263,42 +267,103 @@ function UserAuthForm({ type, ...props }: UserAuthFormProps) {
   }, [watchedUsername, type, form])
 
   async function onSubmit(data: RegisterFormValues) {
+    // validate form first
+    const isValid = await form.trigger()
+    if (!isValid) {
+      return
+    }
+    
     setIsLoading(true)
 
     try {
       const endpoint = type === "login" ? "/api/auth/login" : "/api/auth/register"
       
       if (type === "login") {
-        // for login, use URLSearchParams format as required by OAuth2PasswordRequestForm
-        const params = new URLSearchParams()
-        params.append("username", data.email) // email field contains either email or username
-        params.append("password", data.password)
-        const response = await api.post(endpoint, params, {
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded'
+        try {
+          // for login, use URLSearchParams format as required by OAuth2PasswordRequestForm
+          const params = new URLSearchParams()
+          params.append("username", data.email) // email field contains either email or username
+          params.append("password", data.password)
+          
+          const response = await api.post(endpoint, params, {
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded'
+            }
+          })
+          
+          if (!response.data?.access_token) {
+            throw new Error("no access token received")
           }
-        })
-        
-        if (!response.data?.access_token) {
-          throw new Error("no access token received")
+          
+          // only navigate if login is successful
+          await login()
+          navigate("/")
+        } catch (err) {
+          if (process.env.NODE_ENV === "development") {
+            console.error("login error:", err)
+          }
+          
+          // prevent any navigation for a few seconds
+          setIsLoading(false)
+          
+          if (err instanceof AxiosError) {
+            const errorMessage = err.response?.data?.detail || "authentication failed"
+            toast.error(errorMessage, {
+              duration: 10000, 
+              id: "login-error"
+            })
+          } else {
+            toast.error("something went wrong with login", {
+              duration: 10000,
+              id: "login-error" 
+            })
+          }
+
+          return
         }
       } else {
         // for register, use JSON format
-        await api.post(endpoint, data)
+        try {
+          await api.post(endpoint, data)
+          // only navigate if registration is successful
+          await login()
+          navigate("/")
+        } catch (err) {
+          if (process.env.NODE_ENV === "development") {
+            console.error("registration error:", err)
+          }
+          
+          setIsLoading(false)
+          
+          if (err instanceof AxiosError) {
+            const errorMessage = err.response?.data?.detail || "registration failed"
+            toast.error(errorMessage, {
+              duration: 10000, 
+              id: "registration-error"
+            })
+          } else {
+            toast.error("something went wrong with registration", {
+              duration: 10000, 
+              id: "registration-error"
+            })
+          }
+          
+          return
+        }
+      }
+    } catch (err) {
+      if (process.env.NODE_ENV === "development") {
+        console.error("form submission error:", err)
       }
       
-      await login()
-      navigate("/")
-    } catch (err) {
-      console.error("login error:", err)
-      if (err instanceof AxiosError && err.response?.data) {
-        const errorMessage = typeof err.response.data.detail === 'string' 
-          ? err.response.data.detail 
-          : "authentication failed"
-        form.setError("root", { message: errorMessage })
-      } else {
-        form.setError("root", { message: "something went wrong" })
-      }
+      setIsLoading(false)
+      
+      toast.error("something went wrong with the form submission", {
+        duration: 10000, 
+        id: "form-error"
+      })
+      
+      return
     } finally {
       setIsLoading(false)
     }
@@ -309,15 +374,21 @@ function UserAuthForm({ type, ...props }: UserAuthFormProps) {
       const response = await api.get(`/api/auth/${provider}`)
       window.location.href = response.data.url
     } catch (err) {
-      console.error(err)
-      form.setError("root", { message: "failed to initialize oauth login" })
+      if (process.env.NODE_ENV === "development") {
+        console.error(err)
+      }
+      
+      toast.error("failed to initialize oauth login", {
+        duration: 10000, 
+        id: "oauth-error"
+      })
     }
   }
 
   return (
     <div className="grid gap-6" {...props}>
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-2">
+        <div className="space-y-2">
           {type === "register" && (
             <FormField
               control={form.control}
@@ -418,16 +489,24 @@ function UserAuthForm({ type, ...props }: UserAuthFormProps) {
             )}
           />
           
-          {form.formState.errors.root && (
-            <p className="text-sm text-red-500">{form.formState.errors.root.message}</p>
-          )}
-          <Button variant="outline" className="w-full hover:border-slate-800" disabled={isLoading}>
+          <Button 
+            type="button" 
+            variant="outline" 
+            className="w-full hover:border-slate-800" 
+            disabled={isLoading}
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              onSubmit(form.getValues())
+              return false
+            }}
+          >
             {isLoading && (
               <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />
             )}
             {type === "login" ? "Sign in" : "Sign up"}
           </Button>
-        </form>
+        </div>
       </Form>
 
       <div className="relative">

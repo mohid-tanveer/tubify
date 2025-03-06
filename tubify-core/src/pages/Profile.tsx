@@ -1,14 +1,16 @@
 import { useContext, useEffect, useState, useRef } from "react"
 import { AuthContext } from "@/contexts/auth"
 import { TubifyTitle } from "@/components/ui/tubify-title"
-import api from "@/lib/axios"
+import api, { AxiosError } from "@/lib/axios"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { Pencil, X, Check } from "lucide-react"
+import { Pencil, X, Check, Music } from "lucide-react"
 import { toast } from "sonner"
 import { z } from "zod"
 import { Icons } from "@/components/icons"
+import { useNavigate, useLoaderData } from "react-router-dom"
+import { ProfileData } from "@/loaders/user-loaders"
 
 const profileSchema = z.object({
   username: z.string()
@@ -24,46 +26,133 @@ interface Profile {
   bio: string
 }
 
+interface Friend {
+  id: number;
+  username: string;
+  profile_picture: string;
+}
+
+interface FriendRequest {
+  sender_id: number;
+  receiver_id: number;
+  status: string;
+  username: string;
+}
+
 export default function Profile() {
   const { isAuthenticated, logout } = useContext(AuthContext)
-  const [profile, setProfile] = useState<Profile | null>(null)
-  const [isLoading, setIsLoading] = useState<boolean>(false)
+  const { profile, friends, friendRequests, isSpotifyConnected } = useLoaderData() as ProfileData
   const [isEditing, setIsEditing] = useState(false)
   const [editForm, setEditForm] = useState<{
     username: string
     bio: string
   }>({
-    username: "",
-    bio: "",
+    username: profile?.user_name || "",
+    bio: profile?.bio || "",
   })
   const [isSaving, setIsSaving] = useState(false)
   const [isCheckingUsername, setIsCheckingUsername] = useState(false)
   const [usernameError, setUsernameError] = useState<string | null>(null)
   const usernameCheckTimeout = useRef<NodeJS.Timeout>()
+  const navigate = useNavigate()
+  const [searchUsername, setSearchUsername] = useState("")
+  const [isAddingFriend, setIsAddingFriend] = useState(false)
+  const [localFriends, setLocalFriends] = useState<Friend[]>(friends)
+  const [localFriendRequests, setLocalFriendRequests] = useState<FriendRequest[]>(friendRequests)
 
-  const fetchProfile = async () => {
+  const handleAddFriend = async () => {
     try {
-      setIsLoading(true)
-      const response = await api.get("/api/profile")
-      setProfile(response.data)
-      setEditForm({
-        username: response.data.user_name,
-        bio: response.data.bio,
-      })
+      setIsAddingFriend(true)
+      await api.post(`/api/profile/add-friend/${searchUsername}`)
+      toast.success("Friend request sent!")
+      
+      // clear the search input
+      setSearchUsername("")
     } catch (error) {
-      console.error("failed to fetch profile:", error)
-      toast.error("Failed to load profile")
+      if (process.env.NODE_ENV === "development") {
+        console.error("failed to add friend:", error)
+      }
+      
+      // display the specific error message from the backend
+      const axiosError = error as AxiosError<{ detail: string }>
+      if (axiosError.response?.data?.detail) {
+        toast.error(axiosError.response.data.detail)
+      } else {
+        toast.error("Failed to send friend request.")
+      }
     } finally {
-      setIsLoading(false)
+      setIsAddingFriend(false)
     }
   }
 
-  useEffect(() => {
-    if (isAuthenticated) {
-      fetchProfile()
+  const handleAcceptFriendRequest = async (senderId: number) => {
+    try {
+      const response = await api.post(`/api/profile/accept-friend-request/${senderId}`)
+      toast.success("Friend request accepted!")
+      
+      // get the accepted friend from the response
+      const acceptedFriend = response.data
+      
+      // update local state
+      setLocalFriends(prevFriends => [...prevFriends, acceptedFriend])
+      setLocalFriendRequests(prevRequests => 
+        prevRequests.filter(request => request.sender_id !== senderId)
+      )
+    } catch (error) {
+      console.error("failed to accept friend request:", error)
+      
+      // display the specific error message from the backend
+      const axiosError = error as AxiosError<{ detail: string }>
+      if (axiosError.response?.data?.detail) {
+        toast.error(axiosError.response.data.detail)
+      } else {
+        toast.error("Failed to accept friend request.")
+      }
     }
-  }, [isAuthenticated])
+  }
+  
+  const handleRejectFriendRequest = async (senderId: number) => {
+    try {
+      await api.post(`/api/profile/reject-friend-request/${senderId}`)
+      toast.success("Friend request rejected")
+      
+      // update local state by removing the rejected request
+      setLocalFriendRequests(prevRequests => 
+        prevRequests.filter(request => request.sender_id !== senderId)
+      )
+    } catch (error) {
+      console.error("failed to reject friend request:", error)
+      
+      // display the specific error message from the backend
+      const axiosError = error as AxiosError<{ detail: string }>
+      if (axiosError.response?.data?.detail) {
+        toast.error(axiosError.response.data.detail)
+      } else {
+        toast.error("Failed to reject friend request.")
+      }
+    }
+  }
 
+  const handleRemoveFriend = async (friendId: number) => {
+    try {
+      await api.post(`/api/profile/remove-friend/${friendId}`)
+      toast.success("Friend removed!")
+      // update local friends state by filtering out the removed friend
+      setLocalFriends(prevFriends => prevFriends.filter(friend => friend.id !== friendId))
+    } catch (error) {
+      console.error("failed to remove friend:", error)
+      
+      // display the specific error message from the backend
+      const axiosError = error as AxiosError<{ detail: string }>
+      if (axiosError.response?.data?.detail) {
+        toast.error(axiosError.response.data.detail)
+      } else {
+        toast.error("Failed to remove friend.")
+      }
+    }
+  }
+
+  // username check effect
   useEffect(() => {
     if (!isEditing) return
 
@@ -89,7 +178,9 @@ export default function Profile() {
           setUsernameError(null)
         }
       } catch (error) {
-        console.error("Failed to check username:", error)
+        if (process.env.NODE_ENV === "development") {
+          console.error("Failed to check username:", error)
+        }
       } finally {
         setIsCheckingUsername(false)
       }
@@ -136,16 +227,26 @@ export default function Profile() {
       }
 
       setIsSaving(true)
-      const response = await api.put("/api/profile", editForm)
-      setProfile(response.data)
+      await api.put("/api/profile", editForm)
+      // update local profile state
+      navigate(".", { replace: true }) // refresh the page to get updated data
       setIsEditing(false)
       toast.success("Profile updated successfully")
     } catch (error) {
-      console.error("failed to update profile:", error)
+      if (process.env.NODE_ENV === "development") {
+        console.error("failed to update profile:", error)
+      }
       toast.error("Failed to update profile")
     } finally {
       setIsSaving(false)
     }
+  }
+
+  const handleLogout = async () => {
+    // clear all local storage
+    localStorage.clear()
+    
+    await logout()
   }
 
   if (!isAuthenticated) {
@@ -156,19 +257,6 @@ export default function Profile() {
         </div>
         <div className="flex-1 flex items-center justify-center">
           <p className="text-white">Please sign in to view your profile.</p>
-        </div>
-      </div>
-    )
-  }
-
-  if (isLoading) {
-    return (
-      <div className="overflow-hidden flex flex-col min-h-screen">
-        <div className="absolute top-0 left-0">
-          <TubifyTitle />
-        </div>
-        <div className="flex-1 flex items-center justify-center">
-          <p className="text-white">Loading...</p>
         </div>
       </div>
     )
@@ -275,12 +363,97 @@ export default function Profile() {
                 </Button>
               </div>
               <p className="text-white text-center">{profile.bio || "No bio yet"}</p>
-              <Button
-                onClick={logout}
-                className="text-white hover:text-red-500 transition-colors"
-              >
-                Sign out
-              </Button>
+
+              <div className="flex flex-col items-center gap-4">
+                  <h2 className="text-white text-xl">Friends</h2>
+                  <ul className="text-white">
+                    {localFriends.map((friend) => (
+                      <li key={friend.id} className="flex items-center gap-2">
+                        <img
+                          src={friend.profile_picture}
+                          alt={friend.username}
+                          className="w-8 h-8 rounded-full"
+                        />
+                        <span>{friend.username}</span>
+                        <Button
+                          onClick={() => handleRemoveFriend(friend.id)}
+                          className="text-red-500 hover:text-red-700 transition-colors"
+                        >
+                          Remove
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                  <h2 className="text-white text-xl">Friend Requests</h2>
+                  <ul className="text-white">
+                    {localFriendRequests.map((request) => (
+                      <li
+                        key={request.sender_id}
+                        className="flex items-center gap-2"
+                      >
+                        <span>{request.username}</span>
+                        <Button
+                          onClick={() =>
+                            handleAcceptFriendRequest(request.sender_id)
+                          }
+                          className="text-green-500 hover:text-green-700 transition-colors"
+                        >
+                          Accept
+                        </Button>
+                        <Button
+                          onClick={() =>
+                            handleRejectFriendRequest(request.sender_id)
+                          }
+                          className="text-red-500 hover:text-red-700 transition-colors"
+                        >
+                          Reject
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={searchUsername}
+                      onChange={(e) => setSearchUsername(e.target.value)}
+                      placeholder="Search username"
+                      className="text-black"
+                    />
+                    <Button
+                      onClick={handleAddFriend}
+                      disabled={isAddingFriend}
+                      className="text-white hover:text-blue-500 transition-colors"
+                    >
+                      Add Friend
+                    </Button>
+                  </div>
+                </div>
+              
+              <div className="flex flex-col gap-4 w-full">
+                {isSpotifyConnected ? (
+                  <Button
+                    onClick={() => navigate("/playlists")}
+                    className="flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 w-full"
+                  >
+                    <Music className="w-4 h-4" />
+                    My Playlists
+                  </Button>
+                ) : (
+                  <Button
+                    className="flex items-center justify-center gap-2 bg-gray-600 hover:bg-gray-700 cursor-not-allowed w-full"
+                    onClick={() => toast.error("Please connect Spotify to access playlists")}
+                  >
+                    <Music className="w-4 h-4" />
+                    Connect Spotify to Create Playlists
+                  </Button>
+                )}
+                
+                <Button
+                  onClick={handleLogout}
+                  className="text-white transition-colors w-full"
+                >
+                  Sign out
+                </Button>
+              </div>
             </>
           )}
         </div>
