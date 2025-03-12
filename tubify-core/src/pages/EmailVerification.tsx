@@ -58,7 +58,7 @@ export default function EmailVerification() {
             <h1 className="text-2xl font-semibold tracking-tight text-white">
               Verifying your email...
             </h1>
-            <p className="text-sm text-muted-foreground text-white">
+            <p className="text-sm text-white">
               Please wait while we verify your email address.
             </p>
           </div>

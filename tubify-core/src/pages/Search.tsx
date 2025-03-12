@@ -27,7 +27,7 @@ export default function Search() {
 
   useEffect(() => {
     if (searchQuery) {
-      // Run the queries when the searchQuery changes
+      // run the queries when the searchQuery changes
       const fetchResults = async () => {
         try {
           const userResponse = await api.get<UserSearchResult[]>(`/api/search/users?query=${searchQuery}`)

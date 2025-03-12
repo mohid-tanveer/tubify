@@ -53,7 +53,13 @@ export function SortableSongItem({
     transform,
     transition,
     isDragging
-  } = useSortable({ id: song.id });
+  } = useSortable({ 
+    id: song.id,
+    transition: {
+      duration: 150,
+      easing: 'cubic-bezier(0.25, 1, 0.5, 1)'
+    }
+  });
   
   // apply styles for dragging
   const style = {
@@ -61,7 +67,7 @@ export function SortableSongItem({
     transition,
     opacity: isDragging ? 0.5 : 1,
     zIndex: isDragging ? 1 : 0,
-    cursor: 'default',
+    willChange: isDragging ? 'transform' : 'auto',
   };
 
   const handleRemoveSong = async (e: React.MouseEvent) => {
@@ -99,52 +105,52 @@ export function SortableSongItem({
     <div 
       ref={setNodeRef} 
       style={style}
-      className={`grid grid-cols-12 gap-4 rounded-md p-2 text-sm ${
+      className={`grid grid-cols-12 gap-4 rounded-md p-2 md:text-sm text-xs ${
         isDragging 
           ? 'bg-slate-800 border border-slate-600 shadow-lg' 
           : 'hover:bg-slate-900'
-      } cursor-default!`}
+      }`}
       {...attributes}
       {...listeners}
     >
       <div className="col-span-1 flex items-center text-slate-400">
         <span>{index + 1}</span>
       </div>
-      <div className="col-span-5 flex items-center gap-3">
+      <div className="col-span-5 flex items-center gap-2 md:gap-3">
         {song.album_art_url ? (
           <img
             src={song.album_art_url}
             alt={song.name}
-            className="h-10 w-10 rounded object-cover"
+            className="h-8 w-8 md:h-10 md:w-10 rounded object-cover"
           />
         ) : (
-          <div className="flex h-10 w-10 items-center justify-center rounded bg-slate-800">
-            <Music className="h-5 w-5 text-slate-600" />
+          <div className="flex h-8 w-8 md:h-10 md:w-10 items-center justify-center rounded bg-slate-800">
+            <Music className="h-4 w-4 md:h-5 md:w-5 text-slate-600" />
           </div>
         )}
         <div className="truncate">
-          <div className="font-medium text-white">{song.name}</div>
+          <div className="font-medium text-white text-xs md:text-sm">{song.name}</div>
           {song.album && (
-            <div className="truncate text-xs text-slate-500">
+            <div className="truncate text-xs md:text-xs text-[10px] text-slate-500">
               {song.album}
             </div>
           )}
         </div>
       </div>
-      <div className="col-span-3 flex items-center text-slate-300">
+      <div className="col-span-3 flex items-center text-slate-300 text-xs md:text-sm">
         {song.artist}
       </div>
-      <div className="col-span-2 flex items-center justify-end gap-2 text-slate-400">
+      <div className="col-span-2 flex items-center justify-end gap-2 text-slate-400 text-xs md:text-sm">
         {song.preview_url && (
           <Button
             size="icon"
             variant="ghost"
-            className="h-6 w-6 rounded-full hover:bg-green-900/30 hover:text-green-500"
+            className="h-5 w-5 md:h-6 md:w-6 rounded-full hover:bg-green-900/30 hover:text-green-500"
             onClick={handlePlayPreview}
             disabled={disabled}
             data-no-dnd="true"
           >
-            <Play className="h-3 w-3" />
+            <Play className="h-2 w-2 md:h-3 md:w-3" />
           </Button>
         )}
         <span>{formatDuration(song.duration_ms)}</span>
@@ -153,15 +159,15 @@ export function SortableSongItem({
         <Button
           size="icon"
           variant="ghost"
-          className="h-7 w-7 rounded-full hover:bg-red-900/30 hover:text-red-500"
+          className="h-6 w-6 md:h-7 md:w-7 rounded-full hover:bg-red-900/30 hover:text-red-500"
           onClick={handleRemoveSong}
           disabled={isRemoving || disabled}
           data-no-dnd="true"
         >
           {isRemoving ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
+            <Loader2 className="h-3 w-3 md:h-4 md:w-4 animate-spin" />
           ) : (
-            <Trash2 className="h-4 w-4" />
+            <Trash2 className="h-3 w-3 md:h-4 md:w-4" />
           )}
         </Button>
       </div>

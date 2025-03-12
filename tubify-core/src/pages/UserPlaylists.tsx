@@ -24,7 +24,7 @@ export default function UserPlaylists() {
   const navigate = useNavigate()
 
   return (
-    <div className="min-h-screen bg-linear-to-b from-slate-900 to-black pb-20">
+    <div className="scrollable-page bg-linear-to-b from-slate-900 to-black">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="pt-6 pb-4">
           <Button
@@ -42,7 +42,7 @@ export default function UserPlaylists() {
           <p className="mt-2 text-slate-400">browse public playlists by {username}</p>
         </div>
 
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 pb-8">
           {playlists.map((playlist) => (
             <div
               key={playlist.id}

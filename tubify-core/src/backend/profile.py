@@ -253,7 +253,7 @@ async def get_friend_requests(current_user: User = Depends(get_current_user)):
                 sender_id=request["sender_id"],
                 receiver_id=request["receiver_id"],
                 status=request["status"],
-                username=request["username"],  # Include the username
+                username=request["username"],
             )
             for request in requests
         ]

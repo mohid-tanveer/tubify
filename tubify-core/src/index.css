@@ -43,9 +43,11 @@
   user-select: none;
 }
 
-/* add a grabbing cursor when dragging */
 .dragging {
-  cursor: grabbing !important;
+  user-select: none;
+  -webkit-user-select: none;
+  overflow-x: hidden;
+  touch-action: pan-y;
 }
 
 /* ... */
@@ -104,26 +106,23 @@ body {
   padding: 0;
   min-width: 320px;
   min-height: 100vh;
-  overflow: hidden; /* default to hidden for most pages */
-}
-
-/* class to enable scrolling on specific pages */
-.scrollable-page {
-  height: 100vh;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch; /* for smooth scrolling on iOS */
-}
-
-/* apply momentum-based scrolling for mobile devices */
-.scrollable-page {
-  -webkit-overflow-scrolling: touch;
-  scroll-behavior: smooth;
+  overflow: hidden;
 }
 
 /* apply fixed positioning only when dragging */
 body.dragging {
   overflow: hidden;
 }
+
+/* enable scrolling */
+.scrollable-page {
+  height: 100vh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  scroll-behavior: smooth;
+}
+
 
 @media (prefers-color-scheme: light) {
   :root {
@@ -251,5 +250,14 @@ body.dragging {
   }
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+/* prevent horizontal scrolling on mobile */
+@media (max-width: 768px) {
+  html, body {
+    overflow-x: hidden;
+    position: relative;
+    width: 100%;
   }
 }

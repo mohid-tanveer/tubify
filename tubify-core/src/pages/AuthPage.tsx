@@ -214,7 +214,7 @@ function UserAuthForm({ type, ...props }: UserAuthFormProps): JSX.Element {
   const { login } = useContext(AuthContext)
   const usernameCheckTimeout = useRef<NodeJS.Timeout>()
 
-  // Use a different form based on the type
+  // use a different form based on the type
   const loginForm = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: {

@@ -7,6 +7,10 @@ import {
   useSensor,
   useSensors,
   DragEndEvent,
+  DragOverlay,
+  defaultDropAnimationSideEffects,
+  DropAnimation,
+  DragStartEvent,
 } from "@dnd-kit/core";
 import {
   arrayMove,
@@ -39,6 +43,16 @@ interface DraggableSongListProps {
   onSongsReordered: (songs: Song[]) => void;
 }
 
+const dropAnimation: DropAnimation = {
+  sideEffects: defaultDropAnimationSideEffects({
+    styles: {
+      active: {
+        opacity: '0.5',
+      },
+    },
+  }),
+};
+
 export function DraggableSongList({ 
   songs, 
   playlistPublicId, 
@@ -48,6 +62,7 @@ export function DraggableSongList({
   const [items, setItems] = useState<Song[]>(songs);
   const [isReordering, setIsReordering] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [activeId, setActiveId] = useState<number | null>(null);
   
   // update items when songs prop changes
   useEffect(() => {
@@ -63,46 +78,27 @@ export function DraggableSongList({
   // prevent body scrolling during drag
   useEffect(() => {
     if (isDragging) {
-      // save current scroll position
-      const scrollY = window.scrollY;
       
-      // lock body scroll
-      document.body.style.position = 'fixed';
-      document.body.style.top = `-${scrollY}px`;
-      document.body.style.width = '100%';
+      // prevent horizontal scrolling during drag
+      const preventHorizontalScroll = (e: WheelEvent) => {
+        if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+          e.preventDefault();
+        }
+      };
       
-      // add dragging class for cursor styling
-      document.body.classList.add('dragging');
-    } else {
-      // unlock body scroll
-      const scrollY = document.body.style.top;
-      document.body.style.position = '';
-      document.body.style.top = '';
-      document.body.style.width = '';
+      // add event listener to prevent horizontal scrolling
+      document.addEventListener('wheel', preventHorizontalScroll, { passive: false });
       
-      // remove dragging class
-      document.body.classList.remove('dragging');
-      
-      // restore scroll position
-      if (scrollY) {
-        window.scrollTo(0, parseInt(scrollY || '0', 10) * -1);
-      }
+      return () => {
+        document.removeEventListener('wheel', preventHorizontalScroll);
+      };
     }
-    
-    return () => {
-      // cleanup in case component unmounts during drag
-      document.body.style.position = '';
-      document.body.style.top = '';
-      document.body.style.width = '';
-      document.body.classList.remove('dragging');
-    };
   }, [isDragging]);
 
-  // setup sensors for drag detection
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 8, // minimum drag distance before activation
+        distance: 4,
       },
       canStartDragging: (event: { target: EventTarget }) => {
         return !(event.target as HTMLElement).closest('[data-no-dnd="true"]');
@@ -113,19 +109,20 @@ export function DraggableSongList({
     })
   );
 
-  // handle drag start event
-  const handleDragStart = () => {
+  const handleDragStart = (event: DragStartEvent) => {
+    const { active } = event;
+    setActiveId(Number(active.id));
     setIsDragging(true);
   };
   
-  // handle drag cancel event
   const handleDragCancel = () => {
+    setActiveId(null);
     setIsDragging(false);
   };
 
-  // handle drag end event
   const handleDragEnd = async (event: DragEndEvent) => {
     setIsDragging(false);
+    setActiveId(null);
     
     const { active, over } = event;
     
@@ -171,6 +168,10 @@ export function DraggableSongList({
     }
   };
 
+  // find active song for overlay
+  const activeSong = activeId ? items.find(song => song.id === activeId) : null;
+  const activeIndex = activeSong ? items.findIndex(song => song.id === activeId) : -1;
+
   return (
     <div className="space-y-2 pb-8">
       <DndContext 
@@ -195,6 +196,36 @@ export function DraggableSongList({
             />
           ))}
         </SortableContext>
+        
+        <DragOverlay dropAnimation={dropAnimation}>
+          {activeId && activeSong ? (
+            <div className="grid grid-cols-12 gap-4 rounded-md p-2 bg-slate-800 border border-slate-600 shadow-lg text-xs md:text-sm">
+              <div className="col-span-1 flex items-center text-slate-400">
+                <span>{activeIndex + 1}</span>
+              </div>
+              <div className="col-span-5 flex items-center gap-2 md:gap-3">
+                <img
+                  src={activeSong.album_art_url}
+                  alt={activeSong.name}
+                  className="h-8 w-8 md:h-10 md:w-10 rounded object-cover"
+                />
+                <div className="truncate">
+                  <div className="font-medium text-white text-xs md:text-sm">{activeSong.name}</div>
+                  {activeSong.album && (
+                    <div className="truncate text-xs md:text-xs text-[10px] text-slate-500">
+                      {activeSong.album}
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="col-span-3 flex items-center text-slate-300 text-xs md:text-sm">
+                {activeSong.artist}
+              </div>
+              <div className="col-span-3 flex items-center justify-end text-slate-400 text-xs md:text-sm">
+              </div>
+            </div>
+          ) : null}
+        </DragOverlay>
       </DndContext>
     </div>
   );

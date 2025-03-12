@@ -107,11 +107,11 @@ const router = createBrowserRouter([
         element: <ProtectedRoute><Playlists /></ProtectedRoute>,
         loader: async (args) => {
           // first check auth and spotify status
-          const result = await fullAuthLoader(args);
-          if (result) return result; // if it returns a redirect, pass it through
+          const result = await fullAuthLoader(args)
+          if (result) return result // if it returns a redirect, pass it through
           
           // if auth and spotify checks pass, load playlists
-          return playlistsLoader();
+          return playlistsLoader()
         },
       },
       {
@@ -119,11 +119,11 @@ const router = createBrowserRouter([
         element: <ProtectedRoute><PlaylistDetail /></ProtectedRoute>,
         loader: async (args) => {
           // first check auth and spotify status
-          const result = await fullAuthLoader(args);
-          if (result) return result; // if it returns a redirect, pass it through
+          const result = await fullAuthLoader(args)
+          if (result) return result // if it returns a redirect, pass it through
           
           // if auth and spotify checks pass, load playlist detail
-          return playlistDetailLoader(args);
+          return playlistDetailLoader(args)
         },
       },
       {

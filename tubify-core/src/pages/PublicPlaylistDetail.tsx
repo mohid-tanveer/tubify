@@ -36,7 +36,7 @@ export default function PublicPlaylistDetail() {
   const navigate = useNavigate()
 
   return (
-    <div className="min-h-screen bg-linear-to-b from-slate-900 to-black pb-20">
+    <div className="scrollable-page bg-linear-to-b from-slate-900 to-black">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="pt-6 pb-4">
           <Button
@@ -98,9 +98,17 @@ export default function PublicPlaylistDetail() {
         </div>
 
         {/* songs list */}
-        <div className="mt-4 md:mt-8 pb-8 md:pb-16 rounded-lg border border-slate-800 bg-black p-4">
+        <div className="mt-4 md:mt-8">
+          <div className="mb-4 grid grid-cols-12 gap-4 border-b border-slate-800 pb-2 text-xs md:text-sm font-medium text-slate-500">
+            <div className="col-span-1">#</div>
+            <div className="col-span-5">title</div>
+            <div className="col-span-3">artist</div>
+            <div className="col-span-2 text-right">duration</div>
+            <div className="col-span-1"></div>
+          </div>
+
           {playlist.songs.length > 0 ? (
-            <div className="max-h-[calc(100vh-570px)] md:max-h-[calc(100vh-420px)] overflow-y-auto pr-2 space-y-1 pb-4">
+            <div className="space-y-1 pb-4">
               {playlist.songs.map((song, index) => (
                 <SongItem
                   key={song.id}

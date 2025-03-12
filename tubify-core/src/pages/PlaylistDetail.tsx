@@ -174,7 +174,7 @@ export default function PlaylistDetail() {
   }
 
   return (
-    <div className="min-h-screen bg-linear-to-b from-slate-900 to-black pb-36 md:pb-40">
+    <div className="scrollable-page bg-linear-to-b from-slate-900 to-black">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="pt-6 pb-4">
           <Button
@@ -312,8 +312,8 @@ export default function PlaylistDetail() {
         </div>
 
         {/* songs list */}
-        <div className="mt-4 md:mt-8 pb-16 md:pb-20">
-          <div className="mb-4 grid grid-cols-12 gap-4 border-b border-slate-800 pb-2 text-sm font-medium text-slate-500">
+        <div className="mt-4 md:mt-8">
+          <div className="mb-4 grid grid-cols-12 gap-4 border-b border-slate-800 pb-2 text-xs md:text-sm font-medium text-slate-500">
             <div className="col-span-1">#</div>
             <div className="col-span-5">title</div>
             <div className="col-span-3">artist</div>
@@ -322,21 +322,19 @@ export default function PlaylistDetail() {
           </div>
 
           {playlist.songs && playlist.songs.length > 0 ? (
-            <>
-              <DraggableSongList 
-                songs={playlist.songs}
-                playlistPublicId={playlist.public_id}
-                onSongRemoved={handleSongRemoved}
-                onSongsReordered={handleSongsReordered}
-              />
-            </>
+            <DraggableSongList 
+              songs={playlist.songs}
+              playlistPublicId={playlist.public_id}
+              onSongRemoved={handleSongRemoved}
+              onSongsReordered={handleSongsReordered}
+            />
           ) : (
-            <div className="mt-8 text-center text-slate-400">
+            <div className="mt-8 text-center text-slate-400 pb-8">
               <Music className="mx-auto h-12 w-12 opacity-50" />
               <p className="mt-2">no songs in this playlist yet</p>
               <Button 
                 variant="spotify" 
-                className="text-white"
+                className="text-white mt-4"
                 onClick={() => setIsAddSongDialogOpen(true)}
               >
                 <Plus className="mr-2 h-4 w-4" />
