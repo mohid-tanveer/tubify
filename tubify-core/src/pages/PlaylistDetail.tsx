@@ -155,9 +155,8 @@ export default function PlaylistDetail() {
         <div className="container mx-auto mt-4 pb-16">
           <div className="flex items-center gap-2">
             <Button 
-              variant="default"
+              variant="ghost"
               size="sm"
-              className="bg-zinc-900 text-slate-400 hover:text-white"
               onClick={() => navigate("/playlists")}
             >
               <ArrowLeft className="mr-2 h-4 w-4" />
@@ -175,17 +174,16 @@ export default function PlaylistDetail() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-900 to-black pb-36 md:pb-40">
+    <div className="min-h-screen bg-linear-to-b from-slate-900 to-black pb-36 md:pb-40">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="pt-6 pb-4">
           <Button
-            variant="default"
+            variant="ghost"
             size="sm"
-            className="bg-zinc-900 text-slate-400 hover:text-white"
             onClick={() => navigate("/playlists")}
           >
             <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Playlists
+            back to playlists
           </Button>
         </div>
 
@@ -250,7 +248,7 @@ export default function PlaylistDetail() {
             <div className="mt-4 flex flex-wrap gap-2">
               <Dialog open={isAddSongDialogOpen} onOpenChange={setIsAddSongDialogOpen}>
                 <DialogTrigger asChild>
-                  <Button variant="default" className="bg-green-500 hover:bg-green-600 text-white" size="sm">
+                  <Button variant="spotify" className="text-white" size="sm">
                     <Plus className="mr-2 h-4 w-4" />
                     add songs
                   </Button>
@@ -337,8 +335,8 @@ export default function PlaylistDetail() {
               <Music className="mx-auto h-12 w-12 opacity-50" />
               <p className="mt-2">no songs in this playlist yet</p>
               <Button 
-                variant="default" 
-                className="bg-green-500 hover:bg-green-600 text-white"
+                variant="spotify" 
+                className="text-white"
                 onClick={() => setIsAddSongDialogOpen(true)}
               >
                 <Plus className="mr-2 h-4 w-4" />

@@ -1,11 +1,11 @@
-import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react-swc";
-import tailwindcss from "tailwindcss";
-import fs from "fs";
-import path from "path";
+import { defineConfig } from "vite"
+import react from "@vitejs/plugin-react-swc"
+import tailwindcss from "@tailwindcss/vite"
+import fs from "fs"
+import path from "path"
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), tailwindcss()],
   server: {
     https: {
       key: fs.readFileSync("./src/ssl/localhost-key.pem"),
@@ -19,9 +19,4 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
-  css: {
-    postcss: {
-      plugins: [tailwindcss],
-    },
-  },
-});
+})

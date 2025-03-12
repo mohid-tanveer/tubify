@@ -71,10 +71,11 @@ export default function Playlists() {
   const { isAuthenticated } = useContext(AuthContext)
   const navigate = useNavigate()
   
-  const { playlists: initialPlaylists, isSpotifyConnected, spotifyPlaylists } = useLoaderData() as PlaylistsLoaderData
+  const { playlists: initialPlaylists, isSpotifyConnected, spotifyPlaylists: initialSpotifyPlaylists } = useLoaderData() as PlaylistsLoaderData
   
   
   const [playlists, setPlaylists] = useState<Playlist[]>(initialPlaylists)
+  const [spotifyPlaylists, setSpotifyPlaylists] = useState<SpotifyPlaylist[]>(initialSpotifyPlaylists)
   const [isCreating, setIsCreating] = useState(false)
   const [selectedSpotifyPlaylist, setSelectedSpotifyPlaylist] = useState<string>("")
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -121,18 +122,11 @@ export default function Playlists() {
       
       // clear the cache when a new playlist is created
       clearPlaylistsCache()
-      
-      // close the dialog
-      setDialogOpen(false)
-      
-      // reset form
-      form.reset()
-      setSelectedSpotifyPlaylist("")
-      
+
       // fetch updated playlists instead of reloading the page
       try {
         const { data } = await api.get("/api/playlists")
-        setPlaylists(data)
+      
         const spotifyResponse = await api.get("/api/spotify/playlists")
         let spotifyPlaylists = []
         spotifyPlaylists = spotifyResponse.data
@@ -144,7 +138,9 @@ export default function Playlists() {
           spotifyPlaylists,
         }
         
-        // update the cache
+        // update the local state and cache
+        setPlaylists(data)
+        setSpotifyPlaylists(spotifyPlaylists)
         setPlaylistsCache(cacheData)
         
         toast.success("playlist created successfully")
@@ -152,6 +148,13 @@ export default function Playlists() {
         // if fetching fails, still show the new playlist
         setPlaylists([response.data, ...playlists])
       }
+      
+      // close the dialog
+      setDialogOpen(false)
+      
+      // reset form
+      form.reset()
+      setSelectedSpotifyPlaylist("")
     } catch (error) {
       if (process.env.NODE_ENV === 'development') {
         console.error("failed to create playlist:", error)
@@ -163,17 +166,16 @@ export default function Playlists() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-900 to-black pb-20">
+    <div className="min-h-screen bg-linear-to-b from-slate-900 to-black pb-20">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="pt-6 pb-4">
           <Button
-            variant="default"
+            variant="ghost"
             size="sm"
-            className="bg-zinc-900 text-slate-400 hover:text-white"
             onClick={() => navigate("/")}
           >
             <ArrowLeft className="mr-2 h-4 w-4" />
-            Back
+            back
           </Button>
         </div>
 
@@ -249,7 +251,7 @@ export default function Playlists() {
                             />
                             <label 
                               htmlFor="is-public" 
-                              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                              className="text-sm text-muted-foreground font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                             >
                               make playlist public
                             </label>
@@ -266,7 +268,7 @@ export default function Playlists() {
                         <select
                           value={selectedSpotifyPlaylist}
                           onChange={(e) => setSelectedSpotifyPlaylist(e.target.value)}
-                          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           <option value="">select a spotify playlist</option>
                           {spotifyPlaylists
@@ -290,7 +292,7 @@ export default function Playlists() {
                         />
                         <label 
                           htmlFor="show-imported" 
-                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                          className="text-sm text-muted-foreground font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                         >
                           show already imported playlists
                         </label>
@@ -320,11 +322,10 @@ export default function Playlists() {
             <div
               key={playlist.id}
               className="group relative overflow-hidden rounded-lg border border-slate-800 bg-slate-900/50 p-4 transition-all hover:border-slate-600"
-              onClick={() => navigate(`/playlists/${playlist.public_id}`)}
             >
               <div className="flex items-start gap-4">
                 {/* playlist image */}
-                <div className="h-16 w-16 flex-shrink-0 overflow-hidden rounded-md bg-slate-800">
+                <div className="h-16 w-16 shrink-0 overflow-hidden rounded-md bg-slate-800">
                   {playlist.image_url ? (
                     <img
                       src={playlist.image_url}
@@ -345,9 +346,9 @@ export default function Playlists() {
                       {playlist.name}
                     </h3>
                     {playlist.is_public ? (
-                      <Globe className="h-3 w-3 flex-shrink-0 text-slate-400" />
+                      <Globe className="h-3 w-3 shrink-0 text-slate-400" />
                     ) : (
-                      <Lock className="h-3 w-3 flex-shrink-0 text-slate-400" />
+                      <Lock className="h-3 w-3 shrink-0 text-slate-400" />
                     )}
                   </div>
                   
@@ -364,7 +365,12 @@ export default function Playlists() {
               </div>
               
               <div className="absolute inset-0 flex items-center justify-center bg-black/70 opacity-0 transition-opacity group-hover:opacity-100">
-                <Button variant="outline" size="sm" className="bg-black text-white">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="bg-black text-white"
+                  onClick={() => navigate(`/playlists/${playlist.public_id}`)}
+                >
                   view playlist
                 </Button>
               </div>

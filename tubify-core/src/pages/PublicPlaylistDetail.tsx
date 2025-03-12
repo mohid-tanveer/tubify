@@ -36,17 +36,16 @@ export default function PublicPlaylistDetail() {
   const navigate = useNavigate()
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-900 to-black pb-20">
+    <div className="min-h-screen bg-linear-to-b from-slate-900 to-black pb-20">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="pt-6 pb-4">
           <Button
-            variant="default"
+            variant="ghost"
             size="sm"
-            className="bg-zinc-900 text-slate-400 hover:text-white"
             onClick={() => navigate(-1)}
           >
             <ArrowLeft className="mr-2 h-4 w-4" />
-            Back
+            back
           </Button>
         </div>
 

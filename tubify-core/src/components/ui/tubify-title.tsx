@@ -5,14 +5,14 @@ export function TubifyTitle() {
   const isHomePage = location.pathname === "/"
 
   return (
-    <h1 className="text-white text-4xl font-bold p-10 -my-2" style={{letterSpacing: "-3px"}}>
+    <h2 className="text-white text-4xl font-bold p-10 -my-2" style={{letterSpacing: "-3px"}}>
       {isHomePage ? (
         "Tubify"
       ) : (
-        <Link to="/" className="text-white text-4xl font-bold">
+        <Link to="/" className="text-4xl font-bold hover:text-primary">
           Tubify
         </Link>
       )}
-    </h1>
+    </h2>
   )
 } 

@@ -49,7 +49,7 @@ export default function Search() {
   }, [searchQuery])
 
   return (
-    <div className="h-screen bg-gradient-to-b from-gray-950 to-gray-700">
+    <div className="h-screen bg-linear-to-b from-gray-950 to-gray-700">
       <div className="overflow-hidden flex flex-col min-h-screen">
         <div className="absolute top-0 left-0">
           <TubifyTitle />

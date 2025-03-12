@@ -3,7 +3,7 @@ import { useContext, useEffect, useState } from 'react'
 import { Homepage, AuthPage, EmailVerification, ResetPassword, RequestReset, WatchPage, Profile, Search, Playlists, PlaylistDetail, UserProfile, UserPlaylists, PublicPlaylistDetail } from './pages'
 import { Spinner } from './components/ui/spinner'
 import { AuthContext } from './contexts/auth'
-import { Toaster } from 'sonner'
+import { Toaster } from "@/components/ui/sonner"
 import api from './lib/axios'
 import { playlistsLoader, playlistDetailLoader, userProfileLoader, userPlaylistsLoader, publicPlaylistDetailLoader, profileLoader } from './loaders'
 import './App.css'

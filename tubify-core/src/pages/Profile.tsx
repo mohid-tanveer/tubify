@@ -5,7 +5,7 @@ import api, { AxiosError } from "@/lib/axios"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { Pencil, X, Check, Music } from "lucide-react"
+import { Pencil, X, Check } from "lucide-react"
 import { toast } from "sonner"
 import { z } from "zod"
 import { Icons } from "@/components/icons"
@@ -334,7 +334,7 @@ export default function Profile() {
                 <Button
                   onClick={handleSave}
                   disabled={isSaving}
-                  className="bg-green-600 hover:bg-green-700"
+                  variant="spotify"
                 >
                   <Check className="w-4 h-4 mr-2" />
                   {isSaving ? "Saving..." : "Save"}
@@ -342,7 +342,7 @@ export default function Profile() {
                 <Button
                   onClick={handleCancel}
                   disabled={isSaving}
-                  className="bg-red-600 hover:bg-red-700"
+                  variant="destructive"
                 >
                   <X className="w-4 h-4 mr-2" />
                   Cancel
@@ -377,7 +377,7 @@ export default function Profile() {
                         <span>{friend.username}</span>
                         <Button
                           onClick={() => handleRemoveFriend(friend.id)}
-                          className="text-red-500 hover:text-red-700 transition-colors"
+                          variant="destructive"
                         >
                           Remove
                         </Button>
@@ -396,7 +396,7 @@ export default function Profile() {
                           onClick={() =>
                             handleAcceptFriendRequest(request.sender_id)
                           }
-                          className="text-green-500 hover:text-green-700 transition-colors"
+                          variant="spotify"
                         >
                           Accept
                         </Button>
@@ -404,7 +404,7 @@ export default function Profile() {
                           onClick={() =>
                             handleRejectFriendRequest(request.sender_id)
                           }
-                          className="text-red-500 hover:text-red-700 transition-colors"
+                          variant="destructive"
                         >
                           Reject
                         </Button>
@@ -416,12 +416,11 @@ export default function Profile() {
                       value={searchUsername}
                       onChange={(e) => setSearchUsername(e.target.value)}
                       placeholder="Search username"
-                      className="text-black"
                     />
                     <Button
                       onClick={handleAddFriend}
                       disabled={isAddingFriend}
-                      className="text-white hover:text-blue-500 transition-colors"
+                      className="text-slate-700 transition-colors"
                     >
                       Add Friend
                     </Button>
@@ -432,9 +431,10 @@ export default function Profile() {
                 {isSpotifyConnected ? (
                   <Button
                     onClick={() => navigate("/playlists")}
-                    className="flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 w-full"
+                    variant="spotify"
+                    className="flex items-center justify-center gap-2 w-full"
                   >
-                    <Music className="w-4 h-4" />
+                    <Icons.spotify className="mr-2 h-4 w-4" />
                     My Playlists
                   </Button>
                 ) : (
@@ -442,14 +442,15 @@ export default function Profile() {
                     className="flex items-center justify-center gap-2 bg-gray-600 hover:bg-gray-700 cursor-not-allowed w-full"
                     onClick={() => toast.error("Please connect Spotify to access playlists")}
                   >
-                    <Music className="w-4 h-4" />
+                    <Icons.spotify className="mr-2 h-4 w-4" />
                     Connect Spotify to Create Playlists
                   </Button>
                 )}
                 
                 <Button
                   onClick={handleLogout}
-                  className="text-white transition-colors w-full"
+                  variant="destructive"
+                  className="w-full"
                 >
                   Sign out
                 </Button>

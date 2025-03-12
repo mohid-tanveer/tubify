@@ -174,9 +174,6 @@ async def create_playlist(
                 else:
                     break
 
-            if os.getenv("DEV_MODE", "false").lower() == "true":
-                print(f"total tracks collected: {len(songs_to_insert)}")
-
             # find existing songs in one query
             existing_songs = await database.fetch_all(
                 "SELECT id, spotify_id FROM songs WHERE spotify_id = ANY(:spotify_ids)",

@@ -40,10 +40,14 @@ export default {
         destructive: {
           DEFAULT: "hsl(var(--destructive))",
           foreground: "hsl(var(--destructive-foreground))",
+          secondary: "hsl(var(--destructive-secondary))",
         },
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
+        altSwitch: "hsl(var(--alt-switch))",
+        spotify: "hsl(var(--spotify))",
+        spotifySecondary: "hsl(var(--spotify-secondary))",
         chart: {
           1: "hsl(var(--chart-1))",
           2: "hsl(var(--chart-2))",
@@ -55,5 +59,4 @@ export default {
     },
   },
   plugins: [require("tailwindcss-animate")],
-  safelist: ["bg-background"],
-};
+}

@@ -16,7 +16,7 @@ import {
 } from "@dnd-kit/sortable";
 import { SortableSongItem } from "./sortable-song-item";
 import api from "@/lib/axios";
-import { toast } from "sonner";
+import { toast } from "sonner"
 import { clearPlaylistDetailCache } from "@/loaders/playlist-loaders";
 
 // song type
@@ -47,6 +47,7 @@ export function DraggableSongList({
 }: DraggableSongListProps) {
   const [items, setItems] = useState<Song[]>(songs);
   const [isReordering, setIsReordering] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   
   // update items when songs prop changes
   useEffect(() => {
@@ -58,6 +59,44 @@ export function DraggableSongList({
     // call parent callback to refresh data
     onSongRemoved();
   };
+
+  // prevent body scrolling during drag
+  useEffect(() => {
+    if (isDragging) {
+      // save current scroll position
+      const scrollY = window.scrollY;
+      
+      // lock body scroll
+      document.body.style.position = 'fixed';
+      document.body.style.top = `-${scrollY}px`;
+      document.body.style.width = '100%';
+      
+      // add dragging class for cursor styling
+      document.body.classList.add('dragging');
+    } else {
+      // unlock body scroll
+      const scrollY = document.body.style.top;
+      document.body.style.position = '';
+      document.body.style.top = '';
+      document.body.style.width = '';
+      
+      // remove dragging class
+      document.body.classList.remove('dragging');
+      
+      // restore scroll position
+      if (scrollY) {
+        window.scrollTo(0, parseInt(scrollY || '0', 10) * -1);
+      }
+    }
+    
+    return () => {
+      // cleanup in case component unmounts during drag
+      document.body.style.position = '';
+      document.body.style.top = '';
+      document.body.style.width = '';
+      document.body.classList.remove('dragging');
+    };
+  }, [isDragging]);
 
   // setup sensors for drag detection
   const sensors = useSensors(
@@ -74,8 +113,20 @@ export function DraggableSongList({
     })
   );
 
+  // handle drag start event
+  const handleDragStart = () => {
+    setIsDragging(true);
+  };
+  
+  // handle drag cancel event
+  const handleDragCancel = () => {
+    setIsDragging(false);
+  };
+
   // handle drag end event
   const handleDragEnd = async (event: DragEndEvent) => {
+    setIsDragging(false);
+    
     const { active, over } = event;
     
     if (over && active.id !== over.id) {
@@ -121,11 +172,13 @@ export function DraggableSongList({
   };
 
   return (
-    <div className="max-h-[calc(100vh-570px)] md:max-h-[calc(100vh-420px)] overflow-y-auto pr-2 space-y-2 pb-8">
+    <div className="space-y-2 pb-8">
       <DndContext 
         sensors={sensors}
         collisionDetection={closestCenter}
+        onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
+        onDragCancel={handleDragCancel}
       >
         <SortableContext 
           items={items.map(song => song.id)} 

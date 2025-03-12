@@ -99,7 +99,7 @@ export default function Homepage() {
                 </Button>
                 <Button
                   onClick={handlePlaylistsClick}
-                  className="bg-green-600 hover:bg-green-700"
+                  variant="spotify"
                 >
                   <Icons.spotify className="mr-2 h-4 w-4" />
                   My Playlists

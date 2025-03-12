@@ -99,7 +99,11 @@ export function SortableSongItem({
     <div 
       ref={setNodeRef} 
       style={style}
-      className={`grid grid-cols-12 gap-4 rounded-md p-2 text-sm ${isDragging ? 'bg-slate-800' : 'hover:bg-slate-900'} !cursor-default`}
+      className={`grid grid-cols-12 gap-4 rounded-md p-2 text-sm ${
+        isDragging 
+          ? 'bg-slate-800 border border-slate-600 shadow-lg' 
+          : 'hover:bg-slate-900'
+      } cursor-default!`}
       {...attributes}
       {...listeners}
     >
