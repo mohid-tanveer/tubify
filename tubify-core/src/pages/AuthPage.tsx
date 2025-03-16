@@ -38,7 +38,11 @@ const registerSchema = z.object({
     ),
 })
 
-type RegisterFormValues = z.infer<typeof registerSchema>
+type FormValues = {
+  email: string;
+  username?: string;
+  password: string;
+}
 
 interface UserAuthFormProps extends React.HTMLAttributes<HTMLDivElement> {
   type: "login" | "register"
@@ -213,17 +217,17 @@ function UserAuthForm({ type, ...props }: UserAuthFormProps): JSX.Element {
   const { login } = useContext(AuthContext)
   const usernameCheckTimeout = useRef<NodeJS.Timeout>()
 
-  const form = useForm<RegisterFormValues>({
+  const form = useForm<FormValues>({
     resolver: zodResolver(type === "login" ? loginSchema : registerSchema),
     defaultValues: {
       email: "",
       ...(type === "register" ? { username: "" } : {}),
       password: "",
-    } as RegisterFormValues,
+    },
     mode: "onChange",
   })
 
-  const watchedUsername = form.watch("username")
+  const watchedUsername = type === "register" ? form.watch("username") || "" : ""
 
   // check username availability
   useEffect(() => {
@@ -264,7 +268,7 @@ function UserAuthForm({ type, ...props }: UserAuthFormProps): JSX.Element {
     }
   }, [watchedUsername, type, form])
 
-  async function onSubmit(data: RegisterFormValues) {
+  async function onSubmit(data: FormValues) {
     // validate form first
     const isValid = await form.trigger()
     if (!isValid) {
