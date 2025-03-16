@@ -45,7 +45,13 @@ type FormValues = {
 }
 
 interface UserAuthFormProps extends React.HTMLAttributes<HTMLDivElement> {
-  type: "login" | "register"
+  type: "login" | "register";
+  initialValues?: {
+    email: string;
+    username: string;
+    password: string;
+  };
+  onAuthTypeChange: (type: "login" | "register", values: FormValues) => void;
 }
 
 export default function AuthPage() {
@@ -59,6 +65,36 @@ export default function AuthPage() {
     oauth?: string
   }>({})
   const processingRef = useRef(false)
+  const [formValues, setFormValues] = useState<{
+    email: string;
+    username: string;
+    password: string;
+  }>({
+    email: "",
+    username: "",
+    password: ""
+  })
+
+  const handleAuthTypeChange = (newType: "login" | "register", currentValues: FormValues) => {
+    setFormValues({
+      email: currentValues.email !== undefined ? currentValues.email : "",
+      username: currentValues.username !== undefined ? currentValues.username : "",
+      password: currentValues.password || ""
+    })
+    
+    if (newType === "register" && authType === "login" && currentValues.email) {
+      const emailValue = currentValues.email
+      if (!emailValue.includes('@')) {
+        setFormValues({
+          email: "",
+          username: emailValue,
+          password: currentValues.password || ""
+        })
+      }
+    }
+    
+    setAuthType(newType)
+  }
 
   useEffect(() => {
     // extract code from URL
@@ -179,14 +215,18 @@ export default function AuthPage() {
                 : "Enter your information to create an account"}
             </p>
           </div>
-          <UserAuthForm type={authType} />
+          <UserAuthForm 
+            type={authType} 
+            initialValues={formValues}
+            onAuthTypeChange={handleAuthTypeChange}
+          />
           <p className="px-8 text-center text-sm">
             {authType === "login" ? (
               <>
                 <br />Don't have an account?&nbsp;&nbsp;
                 <Button 
                   variant="outline"
-                  onClick={() => setAuthType("register")}
+                  onClick={() => handleAuthTypeChange("register", formValues)}
                 >
                   Sign up
                 </Button>
@@ -196,7 +236,7 @@ export default function AuthPage() {
                 <br />Have an account?&nbsp;&nbsp;
                 <Button 
                   variant="outline"
-                  onClick={() => setAuthType("login")}
+                  onClick={() => handleAuthTypeChange("login", formValues)}
                 >
                   Sign in
                 </Button>
@@ -209,23 +249,48 @@ export default function AuthPage() {
   )
 }
 
-function UserAuthForm({ type, ...props }: UserAuthFormProps): JSX.Element {
+function UserAuthForm({ type, initialValues, onAuthTypeChange, ...props }: UserAuthFormProps): JSX.Element {
   const [isLoading, setIsLoading] = useState<boolean>(false)
   const [showPassword, setShowPassword] = useState(false)
   const [isCheckingUsername, setIsCheckingUsername] = useState(false)
   const navigate = useNavigate()
   const { login } = useContext(AuthContext)
   const usernameCheckTimeout = useRef<NodeJS.Timeout>()
+  const formInitialized = useRef(false)
 
   const form = useForm<FormValues>({
     resolver: zodResolver(type === "login" ? loginSchema : registerSchema),
     defaultValues: {
-      email: "",
-      ...(type === "register" ? { username: "" } : {}),
-      password: "",
+      email: initialValues?.email || "",
+      ...(type === "register" ? { username: initialValues?.username || "" } : {}),
+      password: initialValues?.password || "",
     },
     mode: "onChange",
   })
+
+  useEffect(() => {
+    if (initialValues && (formInitialized.current || type !== "login")) {
+      form.reset({
+        email: initialValues.email || "",
+        ...(type === "register" ? { username: initialValues.username || "" } : {}),
+        password: initialValues.password || "",
+      }, { keepValues: false })
+    }
+    formInitialized.current = true;
+  }, [initialValues, type, form])
+
+  useEffect(() => {
+    const subscription = form.watch((value) => {
+      if (formInitialized.current) {
+        onAuthTypeChange(type, {
+          email: value.email || "",
+          username: value.username || "",
+          password: value.password || ""
+        });
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, [form, type, onAuthTypeChange]);
 
   const watchedUsername = type === "register" ? form.watch("username") || "" : ""
 
@@ -236,16 +301,15 @@ function UserAuthForm({ type, ...props }: UserAuthFormProps): JSX.Element {
     const username = watchedUsername
     if (!username || username.length < 3) return
 
-    // clear any existing timeout
-    if (usernameCheckTimeout.current) {
-      clearTimeout(usernameCheckTimeout.current)
-    }
+    setIsCheckingUsername(true)
 
     // set a new timeout to check username
     usernameCheckTimeout.current = setTimeout(async () => {
       try {
-        setIsCheckingUsername(true)
         const response = await api.get(`/api/auth/check-username/${username}`)
+        
+        await new Promise(resolve => setTimeout(resolve, 100))
+        
         if (!response.data.available) {
           form.setError("username", {
             type: "manual",
@@ -275,6 +339,8 @@ function UserAuthForm({ type, ...props }: UserAuthFormProps): JSX.Element {
       return
     }
     
+    onAuthTypeChange(type, form.getValues())
+    
     setIsLoading(true)
 
     try {
@@ -284,7 +350,7 @@ function UserAuthForm({ type, ...props }: UserAuthFormProps): JSX.Element {
         try {
           // for login, use URLSearchParams format as required by OAuth2PasswordRequestForm
           const params = new URLSearchParams()
-          params.append("username", data.email) // email field contains either email or username
+          params.append("username", data.email)
           params.append("password", data.password)
           
           const response = await api.post(endpoint, params, {
