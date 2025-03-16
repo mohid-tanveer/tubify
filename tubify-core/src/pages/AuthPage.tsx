@@ -38,7 +38,6 @@ const registerSchema = z.object({
     ),
 })
 
-type LoginFormValues = z.infer<typeof loginSchema>
 type RegisterFormValues = z.infer<typeof registerSchema>
 
 interface UserAuthFormProps extends React.HTMLAttributes<HTMLDivElement> {
@@ -139,19 +138,19 @@ export default function AuthPage() {
       <div className="hidden lg:block bg-zinc-900">
         <div className="flex h-full flex-col">
           <div className="flex items-center text-lg p-10 font-medium">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="mr-2 h-6 w-6"
-            >
-              <path d="M15 6v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3V6a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3" />
-            </svg>
-            <Link to="/" className="hover:text-slate-300">
+            <Link to="/" className="flex items-center">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="mr-2 h-6 w-6"
+              >
+                <path d="M15 6v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3V6a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3" />
+              </svg>
               Tubify
             </Link>
           </div>
@@ -167,10 +166,10 @@ export default function AuthPage() {
       <div className="flex items-center justify-center bg-black">
         <div className="mx-auto w-full max-w-sm px-8">
           <div className="flex flex-col text-center">
-            <h2 className="text-xl font-semibold tracking-tight">
+            <h1 className="text-2xl font-semibold tracking-tight">
               {authType === "login" ? "Welcome back" : "Create an account"}
-            </h2>
-            <p className="text-sm py-2">
+            </h1>
+            <p className="text-sm">
               {authType === "login" 
                 ? "Enter your credentials to sign in" 
                 : "Enter your information to create an account"}
@@ -182,7 +181,7 @@ export default function AuthPage() {
               <>
                 <br />Don't have an account?&nbsp;&nbsp;
                 <Button 
-                  variant="outline"               
+                  variant="outline"
                   onClick={() => setAuthType("register")}
                 >
                   Sign up
@@ -214,31 +213,23 @@ function UserAuthForm({ type, ...props }: UserAuthFormProps): JSX.Element {
   const { login } = useContext(AuthContext)
   const usernameCheckTimeout = useRef<NodeJS.Timeout>()
 
-  // use a different form based on the type
-  const loginForm = useForm<LoginFormValues>({
-    resolver: zodResolver(loginSchema),
+  const form = useForm<RegisterFormValues>({
+    resolver: zodResolver(type === "login" ? loginSchema : registerSchema),
     defaultValues: {
       email: "",
+      ...(type === "register" ? { username: "" } : {}),
       password: "",
-    },
+    } as RegisterFormValues,
     mode: "onChange",
   })
 
-  const registerForm = useForm<RegisterFormValues>({
-    resolver: zodResolver(registerSchema),
-    defaultValues: {
-      email: "",
-      username: "",
-      password: "",
-    },
-    mode: "onChange",
-  })
+  const watchedUsername = form.watch("username")
 
   // check username availability
   useEffect(() => {
     if (type !== "register") return
 
-    const username = registerForm.watch("username")
+    const username = watchedUsername
     if (!username || username.length < 3) return
 
     // clear any existing timeout
@@ -252,7 +243,7 @@ function UserAuthForm({ type, ...props }: UserAuthFormProps): JSX.Element {
         setIsCheckingUsername(true)
         const response = await api.get(`/api/auth/check-username/${username}`)
         if (!response.data.available) {
-          registerForm.setError("username", {
+          form.setError("username", {
             type: "manual",
             message: "this username is already taken"
           })
@@ -271,14 +262,11 @@ function UserAuthForm({ type, ...props }: UserAuthFormProps): JSX.Element {
         clearTimeout(usernameCheckTimeout.current)
       }
     }
-  }, [type, registerForm])
+  }, [watchedUsername, type, form])
 
-  async function onSubmit() {
+  async function onSubmit(data: RegisterFormValues) {
     // validate form first
-    const isValid = type === "login" 
-      ? await loginForm.trigger() 
-      : await registerForm.trigger()
-      
+    const isValid = await form.trigger()
     if (!isValid) {
       return
     }
@@ -290,11 +278,10 @@ function UserAuthForm({ type, ...props }: UserAuthFormProps): JSX.Element {
       
       if (type === "login") {
         try {
-          const loginData = loginForm.getValues()
           // for login, use URLSearchParams format as required by OAuth2PasswordRequestForm
           const params = new URLSearchParams()
-          params.append("username", loginData.email) // email field contains either email or username
-          params.append("password", loginData.password)
+          params.append("username", data.email) // email field contains either email or username
+          params.append("password", data.password)
           
           const response = await api.post(endpoint, params, {
             headers: {
@@ -335,8 +322,7 @@ function UserAuthForm({ type, ...props }: UserAuthFormProps): JSX.Element {
       } else {
         // for register, use JSON format
         try {
-          const registerData = registerForm.getValues()
-          await api.post(endpoint, registerData)
+          await api.post(endpoint, data)
           // only navigate if registration is successful
           await login()
           navigate("/")
@@ -398,83 +384,12 @@ function UserAuthForm({ type, ...props }: UserAuthFormProps): JSX.Element {
   }
 
   return (
-    <div className="grid gap-6" {...props}>
-      {type === "login" ? (
-        <Form {...loginForm}>
-          <div className="space-y-2">
+    <div className="grid gap-6 mt-2" {...props}>
+      <Form {...form}>
+        <div className="space-y-2">
+          {type === "register" && (
             <FormField
-              control={loginForm.control}
-              name="email"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Email or username</FormLabel>
-                  <FormControl>
-                    <Input
-                      {...field}
-                      placeholder="name@example.com or username"
-                      type="text"
-                      autoCapitalize="none"
-                      autoComplete="username"
-                      autoCorrect="off"
-                      disabled={isLoading}
-                      className={`${loginForm.formState.errors.email ? 'border-red-500 hover:border-red-600 focus:border-red-600' : ''}`}
-                    />
-                  </FormControl>
-                  <FormMessage className="text-red-500" />
-                </FormItem>
-              )}
-            />
-            
-            <FormField
-              control={loginForm.control}
-              name="password"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Password</FormLabel>
-                  <FormControl>
-                    <div className="relative">
-                      <Input
-                        {...field}
-                        placeholder="********"
-                        type={showPassword ? "text" : "password"}
-                        autoCapitalize="none"
-                        autoComplete="current-password"
-                        disabled={isLoading}
-                        className={`pr-10 ${loginForm.formState.errors.password ? 'border-red-500 hover:border-red-600 focus:border-red-600' : ''}`}
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 p-0 hover:bg-transparent"
-                        onClick={() => setShowPassword(!showPassword)}
-                        tabIndex={-1}
-                      >
-                        {showPassword ? (
-                          <EyeOff className="h-4 w-4 text-gray-500" />
-                        ) : (
-                          <Eye className="h-4 w-4 text-gray-500" />
-                        )}
-                      </Button>
-                    </div>
-                  </FormControl>
-                  <FormMessage className="text-red-500" />
-                  <Link 
-                    to="/reset-password"
-                    className="text-sm hover:text-slate-300 block"
-                  >
-                    forgot password?
-                  </Link>
-                </FormItem>
-              )}
-            />
-          </div>
-        </Form>
-      ) : (
-        <Form {...registerForm}>
-          <div className="space-y-2">
-            <FormField
-              control={registerForm.control}
+              control={form.control}
               name="username"
               render={({ field }) => (
                 <FormItem>
@@ -488,7 +403,7 @@ function UserAuthForm({ type, ...props }: UserAuthFormProps): JSX.Element {
                         autoCapitalize="none"
                         autoCorrect="off"
                         disabled={isLoading}
-                        className={`${registerForm.formState.errors.username ? 'border-red-500 hover:border-red-600 focus:border-red-600' : ''}`}
+                        className={`${form.formState.errors.username ? 'border-red-500 hover:border-red-600 focus:border-red-600' : ''}`}
                       />
                       {isCheckingUsername && (
                         <Icons.spinner className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-gray-500" />
@@ -499,87 +414,97 @@ function UserAuthForm({ type, ...props }: UserAuthFormProps): JSX.Element {
                 </FormItem>
               )}
             />
-            
-            <FormField
-              control={registerForm.control}
-              name="email"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Email</FormLabel>
-                  <FormControl>
+          )}
+          
+          <FormField
+            control={form.control}
+            name="email"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>
+                  {type === "login" ? "Email or username" : "Email"}
+                </FormLabel>
+                <FormControl>
+                  <Input
+                    {...field}
+                    placeholder={type === "login" ? "name@example.com or username" : "name@example.com"}
+                    type={type === "login" ? "text" : "email"}
+                    autoCapitalize="none"
+                    autoComplete={type === "login" ? "username" : "email"}
+                    autoCorrect="off"
+                    disabled={isLoading}
+                    className={`text-white ${form.formState.errors.email ? 'border-red-500 hover:border-red-600 focus:border-red-600' : ''}`}
+                  />
+                </FormControl>
+                <FormMessage className="text-red-500" />
+              </FormItem>
+            )}
+          />
+          
+          <FormField
+            control={form.control}
+            name="password"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Password</FormLabel>
+                <FormControl>
+                  <div className="relative">
                     <Input
                       {...field}
-                      placeholder="name@example.com"
-                      type="email"
+                      placeholder="********"
+                      type={showPassword ? "text" : "password"}
                       autoCapitalize="none"
-                      autoComplete="email"
-                      autoCorrect="off"
+                      autoComplete={type === "login" ? "current-password" : "new-password"}
                       disabled={isLoading}
-                      className={`${registerForm.formState.errors.email ? 'border-red-500 hover:border-red-600 focus:border-red-600' : ''}`}
+                      className={`pr-10 ${form.formState.errors.password ? 'border-red-500 hover:border-red-600 focus:border-red-600' : ''}`}
                     />
-                  </FormControl>
-                  <FormMessage className="text-red-500" />
-                </FormItem>
-              )}
-            />
-            
-            <FormField
-              control={registerForm.control}
-              name="password"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Password</FormLabel>
-                  <FormControl>
-                    <div className="relative">
-                      <Input
-                        {...field}
-                        placeholder="********"
-                        type={showPassword ? "text" : "password"}
-                        autoCapitalize="none"
-                        autoComplete="new-password"
-                        disabled={isLoading}
-                        className={`pr-10 ${registerForm.formState.errors.password ? 'border-red-500 hover:border-red-600 focus:border-red-600' : ''}`}
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 p-0 hover:bg-transparent"
-                        onClick={() => setShowPassword(!showPassword)}
-                        tabIndex={-1}
-                      >
-                        {showPassword ? (
-                          <EyeOff className="h-4 w-4 text-gray-500" />
-                        ) : (
-                          <Eye className="h-4 w-4 text-gray-500" />
-                        )}
-                      </Button>
-                    </div>
-                  </FormControl>
-                  <FormMessage className="text-red-500" />
-                </FormItem>
-              )}
-            />
-          </div>
-        </Form>
-      )}
-
-      <Button 
-        type="button" 
-        className="w-full"
-        disabled={isLoading}
-        onClick={(e) => {
-          e.preventDefault()
-          e.stopPropagation()
-          onSubmit()
-          return false
-        }}
-      >
-        {isLoading && (
-          <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />
-        )}
-        {type === "login" ? "Sign in" : "Sign up"}
-      </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 p-0 hover:bg-transparent"
+                      onClick={() => setShowPassword(!showPassword)}
+                      tabIndex={-1}
+                    >
+                      {showPassword ? (
+                        <EyeOff className="h-4 w-4 text-gray-500" />
+                      ) : (
+                        <Eye className="h-4 w-4 text-gray-500" />
+                      )}
+                    </Button>
+                  </div>
+                </FormControl>
+                <FormMessage className="text-red-500" />
+                {type === "login" && (
+                  <Link 
+                    to="/reset-password"
+                    className="text-sm text-white hover:text-slate-300 block mt-2"
+                  >
+                    forgot password?
+                  </Link>
+                )}
+              </FormItem>
+            )}
+          />
+          
+          <Button 
+            type="button" 
+            className="w-full" 
+            disabled={isLoading}
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              onSubmit(form.getValues())
+              return false
+            }}
+          >
+            {isLoading && (
+              <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />
+            )}
+            {type === "login" ? "Sign in" : "Sign up"}
+          </Button>
+        </div>
+      </Form>
 
       <div className="relative">
         <div className="absolute inset-0 flex items-center">
@@ -607,8 +532,9 @@ function UserAuthForm({ type, ...props }: UserAuthFormProps): JSX.Element {
         </Button>
         <Button 
           onClick={() => handleOAuthLogin("github")} 
-          variant="outline"
+          variant='outline' 
           disabled={isLoading}
+          className="bg-black hover:bg-neutral-900 border-slate-800 hover:border-slate-600 hover:text-slate-300 text-white"
         >
           {isLoading ? (
             <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />
