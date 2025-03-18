@@ -14,6 +14,7 @@ from songs import router as songs_router
 from users import router as users_router
 from public import router as public_router
 from search import router as search_router
+from history import router as history_router
 from database import database, lifespan
 
 # load environment variables
@@ -59,6 +60,7 @@ app.include_router(songs_router)
 app.include_router(users_router)
 app.include_router(public_router)
 app.include_router(search_router)
+app.include_router(history_router)
 if __name__ == "__main__":
     uvicorn.run(
         app,
