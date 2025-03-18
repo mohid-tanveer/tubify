@@ -1,29 +1,33 @@
-import { useContext, useEffect, useState, useRef } from "react"
-import { AuthContext } from "@/contexts/auth"
-import { TubifyTitle } from "@/components/ui/tubify-title"
-import api, { AxiosError } from "@/lib/axios"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
-import { Pencil, X, Check } from "lucide-react"
-import { toast } from "sonner"
-import { z } from "zod"
-import { Icons } from "@/components/icons"
-import { useNavigate, useLoaderData } from "react-router-dom"
-import { ProfileData } from "@/loaders/user-loaders"
+import { useContext, useEffect, useState, useRef } from "react";
+import { AuthContext } from "@/contexts/auth";
+import { TubifyTitle } from "@/components/ui/tubify-title";
+import api, { AxiosError } from "@/lib/axios";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Pencil, X, Check } from "lucide-react";
+import { toast } from "sonner";
+import { z } from "zod";
+import { Icons } from "@/components/icons";
+import { useNavigate, useLoaderData } from "react-router-dom";
+import { ProfileData } from "@/loaders/user-loaders";
 
 const profileSchema = z.object({
-  username: z.string()
+  username: z
+    .string()
     .min(3, "username must be at least 3 characters")
     .max(50, "username must be less than 50 characters")
-    .regex(/^[a-zA-Z0-9._-]+$/, "username can only contain letters, numbers, periods, underscores, and hyphens"),
+    .regex(
+      /^[a-zA-Z0-9._-]+$/,
+      "username can only contain letters, numbers, periods, underscores, and hyphens"
+    ),
   bio: z.string().max(500, "bio must be less than 500 characters"),
-})
+});
 
 interface Profile {
-  user_name: string
-  profile_picture: string
-  bio: string
+  user_name: string;
+  profile_picture: string;
+  bio: string;
 }
 
 interface Friend {
@@ -40,214 +44,220 @@ interface FriendRequest {
 }
 
 export default function Profile() {
-  const { isAuthenticated, logout } = useContext(AuthContext)
-  const { profile, friends, friendRequests, isSpotifyConnected } = useLoaderData() as ProfileData
-  const [isEditing, setIsEditing] = useState(false)
+  const { isAuthenticated, logout } = useContext(AuthContext);
+  const { profile, friends, friendRequests, isSpotifyConnected } =
+    useLoaderData() as ProfileData;
+  const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState<{
-    username: string
-    bio: string
+    username: string;
+    bio: string;
   }>({
     username: profile?.user_name || "",
     bio: profile?.bio || "",
-  })
-  const [isSaving, setIsSaving] = useState(false)
-  const [isCheckingUsername, setIsCheckingUsername] = useState(false)
-  const [usernameError, setUsernameError] = useState<string | null>(null)
-  const usernameCheckTimeout = useRef<NodeJS.Timeout>()
-  const navigate = useNavigate()
-  const [searchUsername, setSearchUsername] = useState("")
-  const [isAddingFriend, setIsAddingFriend] = useState(false)
-  const [localFriends, setLocalFriends] = useState<Friend[]>(friends)
-  const [localFriendRequests, setLocalFriendRequests] = useState<FriendRequest[]>(friendRequests)
+  });
+  const [isSaving, setIsSaving] = useState(false);
+  const [isCheckingUsername, setIsCheckingUsername] = useState(false);
+  const [usernameError, setUsernameError] = useState<string | null>(null);
+  const usernameCheckTimeout = useRef<NodeJS.Timeout>();
+  const navigate = useNavigate();
+  const [searchUsername, setSearchUsername] = useState("");
+  const [isAddingFriend, setIsAddingFriend] = useState(false);
+  const [localFriends, setLocalFriends] = useState<Friend[]>(friends);
+  const [localFriendRequests, setLocalFriendRequests] =
+    useState<FriendRequest[]>(friendRequests);
 
   const handleAddFriend = async () => {
     try {
-      setIsAddingFriend(true)
-      await api.post(`/api/profile/add-friend/${searchUsername}`)
-      toast.success("Friend request sent!")
-      
+      setIsAddingFriend(true);
+      await api.post(`/api/profile/add-friend/${searchUsername}`);
+      toast.success("Friend request sent!");
+
       // clear the search input
-      setSearchUsername("")
+      setSearchUsername("");
     } catch (error) {
       if (process.env.NODE_ENV === "development") {
-        console.error("failed to add friend:", error)
+        console.error("failed to add friend:", error);
       }
-      
+
       // display the specific error message from the backend
-      const axiosError = error as AxiosError<{ detail: string }>
+      const axiosError = error as AxiosError<{ detail: string }>;
       if (axiosError.response?.data?.detail) {
-        toast.error(axiosError.response.data.detail)
+        toast.error(axiosError.response.data.detail);
       } else {
-        toast.error("Failed to send friend request.")
+        toast.error("Failed to send friend request.");
       }
     } finally {
-      setIsAddingFriend(false)
+      setIsAddingFriend(false);
     }
-  }
+  };
 
   const handleAcceptFriendRequest = async (senderId: number) => {
     try {
-      const response = await api.post(`/api/profile/accept-friend-request/${senderId}`)
-      toast.success("Friend request accepted!")
-      
+      const response = await api.post(
+        `/api/profile/accept-friend-request/${senderId}`
+      );
+      toast.success("Friend request accepted!");
+
       // get the accepted friend from the response
-      const acceptedFriend = response.data
-      
+      const acceptedFriend = response.data;
+
       // update local state
-      setLocalFriends(prevFriends => [...prevFriends, acceptedFriend])
-      setLocalFriendRequests(prevRequests => 
-        prevRequests.filter(request => request.sender_id !== senderId)
-      )
+      setLocalFriends((prevFriends) => [...prevFriends, acceptedFriend]);
+      setLocalFriendRequests((prevRequests) =>
+        prevRequests.filter((request) => request.sender_id !== senderId)
+      );
     } catch (error) {
-      console.error("failed to accept friend request:", error)
-      
+      console.error("failed to accept friend request:", error);
+
       // display the specific error message from the backend
-      const axiosError = error as AxiosError<{ detail: string }>
+      const axiosError = error as AxiosError<{ detail: string }>;
       if (axiosError.response?.data?.detail) {
-        toast.error(axiosError.response.data.detail)
+        toast.error(axiosError.response.data.detail);
       } else {
-        toast.error("Failed to accept friend request.")
+        toast.error("Failed to accept friend request.");
       }
     }
-  }
-  
+  };
+
   const handleRejectFriendRequest = async (senderId: number) => {
     try {
-      await api.post(`/api/profile/reject-friend-request/${senderId}`)
-      toast.success("Friend request rejected")
-      
+      await api.post(`/api/profile/reject-friend-request/${senderId}`);
+      toast.success("Friend request rejected");
+
       // update local state by removing the rejected request
-      setLocalFriendRequests(prevRequests => 
-        prevRequests.filter(request => request.sender_id !== senderId)
-      )
+      setLocalFriendRequests((prevRequests) =>
+        prevRequests.filter((request) => request.sender_id !== senderId)
+      );
     } catch (error) {
-      console.error("failed to reject friend request:", error)
-      
+      console.error("failed to reject friend request:", error);
+
       // display the specific error message from the backend
-      const axiosError = error as AxiosError<{ detail: string }>
+      const axiosError = error as AxiosError<{ detail: string }>;
       if (axiosError.response?.data?.detail) {
-        toast.error(axiosError.response.data.detail)
+        toast.error(axiosError.response.data.detail);
       } else {
-        toast.error("Failed to reject friend request.")
+        toast.error("Failed to reject friend request.");
       }
     }
-  }
+  };
 
   const handleRemoveFriend = async (friendId: number) => {
     try {
-      await api.post(`/api/profile/remove-friend/${friendId}`)
-      toast.success("Friend removed!")
+      await api.post(`/api/profile/remove-friend/${friendId}`);
+      toast.success("Friend removed!");
       // update local friends state by filtering out the removed friend
-      setLocalFriends(prevFriends => prevFriends.filter(friend => friend.id !== friendId))
+      setLocalFriends((prevFriends) =>
+        prevFriends.filter((friend) => friend.id !== friendId)
+      );
     } catch (error) {
-      console.error("failed to remove friend:", error)
-      
+      console.error("failed to remove friend:", error);
+
       // display the specific error message from the backend
-      const axiosError = error as AxiosError<{ detail: string }>
+      const axiosError = error as AxiosError<{ detail: string }>;
       if (axiosError.response?.data?.detail) {
-        toast.error(axiosError.response.data.detail)
+        toast.error(axiosError.response.data.detail);
       } else {
-        toast.error("Failed to remove friend.")
+        toast.error("Failed to remove friend.");
       }
     }
-  }
+  };
 
   // username check effect
   useEffect(() => {
-    if (!isEditing) return
+    if (!isEditing) return;
 
-    const username = editForm.username
+    const username = editForm.username;
     if (!username || username.length < 3 || username === profile?.user_name) {
-      setUsernameError(null)
-      return
+      setUsernameError(null);
+      return;
     }
 
     // clear any existing timeout
     if (usernameCheckTimeout.current) {
-      clearTimeout(usernameCheckTimeout.current)
+      clearTimeout(usernameCheckTimeout.current);
     }
 
     // set a new timeout to check username
     usernameCheckTimeout.current = setTimeout(async () => {
       try {
-        setIsCheckingUsername(true)
-        const response = await api.get(`/api/auth/check-username/${username}`)
+        setIsCheckingUsername(true);
+        const response = await api.get(`/api/auth/check-username/${username}`);
         if (!response.data.available) {
-          setUsernameError("this username is already taken")
+          setUsernameError("this username is already taken");
         } else {
-          setUsernameError(null)
+          setUsernameError(null);
         }
       } catch (error) {
         if (process.env.NODE_ENV === "development") {
-          console.error("Failed to check username:", error)
+          console.error("Failed to check username:", error);
         }
       } finally {
-        setIsCheckingUsername(false)
+        setIsCheckingUsername(false);
       }
-    }, 500) // debounce for 500ms
+    }, 500); // debounce for 500ms
 
     return () => {
       if (usernameCheckTimeout.current) {
-        clearTimeout(usernameCheckTimeout.current)
+        clearTimeout(usernameCheckTimeout.current);
       }
-    }
-  }, [editForm.username, isEditing, profile?.user_name])
+    };
+  }, [editForm.username, isEditing, profile?.user_name]);
 
   const handleEdit = () => {
-    if (!profile) return
+    if (!profile) return;
     setEditForm({
       username: profile.user_name,
       bio: profile.bio,
-    })
-    setIsEditing(true)
-  }
+    });
+    setIsEditing(true);
+  };
 
   const handleCancel = () => {
-    setIsEditing(false)
+    setIsEditing(false);
     if (profile) {
       setEditForm({
         username: profile.user_name,
         bio: profile.bio,
-      })
+      });
     }
-  }
+  };
 
   const handleSave = async () => {
     try {
-      const validationResult = profileSchema.safeParse(editForm)
+      const validationResult = profileSchema.safeParse(editForm);
       if (!validationResult.success) {
-        const error = validationResult.error.issues[0]
-        toast.error(error.message)
-        return
+        const error = validationResult.error.issues[0];
+        toast.error(error.message);
+        return;
       }
 
       if (usernameError) {
-        toast.error(usernameError)
-        return
+        toast.error(usernameError);
+        return;
       }
 
-      setIsSaving(true)
-      await api.put("/api/profile", editForm)
+      setIsSaving(true);
+      await api.put("/api/profile", editForm);
       // update local profile state
-      navigate(".", { replace: true }) // refresh the page to get updated data
-      setIsEditing(false)
-      toast.success("Profile updated successfully")
+      navigate(".", { replace: true }); // refresh the page to get updated data
+      setIsEditing(false);
+      toast.success("Profile updated successfully");
     } catch (error) {
       if (process.env.NODE_ENV === "development") {
-        console.error("failed to update profile:", error)
+        console.error("failed to update profile:", error);
       }
-      toast.error("Failed to update profile")
+      toast.error("Failed to update profile");
     } finally {
-      setIsSaving(false)
+      setIsSaving(false);
     }
-  }
+  };
 
   const handleLogout = async () => {
     // clear all local storage
-    localStorage.clear()
-    
-    await logout()
-  }
+    localStorage.clear();
+
+    await logout();
+  };
 
   if (!isAuthenticated) {
     return (
@@ -259,7 +269,7 @@ export default function Profile() {
           <p className="text-white">Please sign in to view your profile.</p>
         </div>
       </div>
-    )
+    );
   }
 
   if (!profile) {
@@ -272,7 +282,7 @@ export default function Profile() {
           <p className="text-white">No profile data available.</p>
         </div>
       </div>
-    )
+    );
   }
 
   return (
@@ -299,7 +309,7 @@ export default function Profile() {
                       onChange={(e) =>
                         setEditForm({ ...editForm, username: e.target.value })
                       }
-                      className={`bg-white/10 border-white/20 text-white ${usernameError ? 'border-red-500' : ''}`}
+                      className={`bg-white/10 border-white/20 text-white ${usernameError ? "border-red-500" : ""}`}
                       placeholder="Enter your username"
                     />
                     {isCheckingUsername && (
@@ -362,71 +372,73 @@ export default function Profile() {
                   <Pencil className="w-4 h-4" />
                 </Button>
               </div>
-              <p className="text-white text-center">{profile.bio || "No bio yet"}</p>
+              <p className="text-white text-center">
+                {profile.bio || "No bio yet"}
+              </p>
 
               <div className="flex flex-col items-center gap-4">
-                  <h2 className="text-white text-xl">Friends</h2>
-                  <ul className="text-white">
-                    {localFriends.map((friend) => (
-                      <li key={friend.id} className="flex items-center gap-2">
-                        <img
-                          src={friend.profile_picture}
-                          alt={friend.username}
-                          className="w-8 h-8 rounded-full"
-                        />
-                        <span>{friend.username}</span>
-                        <Button
-                          onClick={() => handleRemoveFriend(friend.id)}
-                          variant="destructive"
-                        >
-                          Remove
-                        </Button>
-                      </li>
-                    ))}
-                  </ul>
-                  <h2 className="text-white text-xl">Friend Requests</h2>
-                  <ul className="text-white">
-                    {localFriendRequests.map((request) => (
-                      <li
-                        key={request.sender_id}
-                        className="flex items-center gap-2"
+                <h2 className="text-white text-xl">Friends</h2>
+                <ul className="text-white">
+                  {localFriends.map((friend) => (
+                    <li key={friend.id} className="flex items-center gap-2">
+                      <img
+                        src={friend.profile_picture}
+                        alt={friend.username}
+                        className="w-8 h-8 rounded-full"
+                      />
+                      <span>{friend.username}</span>
+                      <Button
+                        onClick={() => handleRemoveFriend(friend.id)}
+                        variant="destructive"
                       >
-                        <span>{request.username}</span>
-                        <Button
-                          onClick={() =>
-                            handleAcceptFriendRequest(request.sender_id)
-                          }
-                          variant="spotify"
-                        >
-                          Accept
-                        </Button>
-                        <Button
-                          onClick={() =>
-                            handleRejectFriendRequest(request.sender_id)
-                          }
-                          variant="destructive"
-                        >
-                          Reject
-                        </Button>
-                      </li>
-                    ))}
-                  </ul>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      value={searchUsername}
-                      onChange={(e) => setSearchUsername(e.target.value)}
-                      placeholder="Search username"
-                    />
-                    <Button
-                      onClick={handleAddFriend}
-                      disabled={isAddingFriend}
-                      className="text-slate-700 transition-colors"
+                        Remove
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+                <h2 className="text-white text-xl">Friend Requests</h2>
+                <ul className="text-white">
+                  {localFriendRequests.map((request) => (
+                    <li
+                      key={request.sender_id}
+                      className="flex items-center gap-2"
                     >
-                      Add Friend
-                    </Button>
-                  </div>
+                      <span>{request.username}</span>
+                      <Button
+                        onClick={() =>
+                          handleAcceptFriendRequest(request.sender_id)
+                        }
+                        variant="spotify"
+                      >
+                        Accept
+                      </Button>
+                      <Button
+                        onClick={() =>
+                          handleRejectFriendRequest(request.sender_id)
+                        }
+                        variant="destructive"
+                      >
+                        Reject
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={searchUsername}
+                    onChange={(e) => setSearchUsername(e.target.value)}
+                    placeholder="Search username"
+                  />
+                  <Button
+                    onClick={handleAddFriend}
+                    disabled={isAddingFriend}
+                    className="text-slate-700 transition-colors"
+                  >
+                    Add Friend
+                  </Button>
                 </div>
-              
+              </div>
+
               <div className="flex flex-col gap-4 w-full">
                 {isSpotifyConnected ? (
                   <Button
@@ -440,13 +452,24 @@ export default function Profile() {
                 ) : (
                   <Button
                     className="flex items-center justify-center gap-2 bg-gray-600 hover:bg-gray-700 cursor-not-allowed w-full"
-                    onClick={() => toast.error("Please connect Spotify to access playlists")}
+                    onClick={() =>
+                      toast.error("Please connect Spotify to access playlists")
+                    }
                   >
                     <Icons.spotify className="mr-2 h-4 w-4" />
                     Connect Spotify to Create Playlists
                   </Button>
                 )}
-                
+
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => navigate("/history")}
+                  >
+                    History
+                  </Button>
+                </div>
+
                 <Button
                   onClick={handleLogout}
                   variant="destructive"
@@ -460,5 +483,5 @@ export default function Profile() {
         </div>
       </div>
     </div>
-  )
+  );
 }
