@@ -74,7 +74,6 @@ CREATE TABLE IF NOT EXISTS songs (
     artist VARCHAR(255) NOT NULL,
     album VARCHAR(255),
     duration_ms INTEGER,
-    preview_url TEXT,
     album_art_url TEXT,
     spotify_uri TEXT,
     spotify_url TEXT,

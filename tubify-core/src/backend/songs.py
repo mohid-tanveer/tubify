@@ -15,7 +15,6 @@ class SpotifySearchResult(BaseModel):
     artist: str
     album: str
     duration_ms: int
-    preview_url: Optional[str] = None
     album_art_url: Optional[str] = None
     spotify_uri: str
     spotify_url: str
@@ -55,7 +54,6 @@ async def search_spotify_songs(
                     artist=artists,
                     album=item["album"]["name"],
                     duration_ms=item["duration_ms"],
-                    preview_url=item["preview_url"],
                     album_art_url=album_art_url,
                     spotify_uri=item["uri"],
                     spotify_url=item["external_urls"]["spotify"],

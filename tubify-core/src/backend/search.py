@@ -13,7 +13,7 @@ class UserSearchResult(BaseModel):
     profile_picture: str
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class PlaylistSearchResult(BaseModel):
@@ -22,7 +22,7 @@ class PlaylistSearchResult(BaseModel):
     description: Optional[str]
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 def get_default_avatar_url(username: str) -> str:

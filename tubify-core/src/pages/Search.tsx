@@ -98,7 +98,7 @@ export default function Search() {
                     <h3 className="text-lg">Playlists:</h3>
                     {playlistResults.map((playlist) => (
                       <div key={playlist.public_id} className="p-2 border-b border-gray-700">
-                        <Link to={`/public/playlists/${playlist.public_id}`}>{playlist.name}</Link>
+                        <Link to={`/users/playlists/${playlist.public_id}`}>{playlist.name}</Link>
                         {playlist.description && <p className="text-sm text-gray-400">{playlist.description}</p>}
                       </div>
                     ))}

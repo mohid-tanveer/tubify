@@ -12,7 +12,6 @@ interface SpotifySearchResult {
   artist: string
   album: string
   duration_ms: number
-  preview_url?: string
   album_art_url?: string
   spotify_uri: string
   spotify_url: string
@@ -88,7 +87,6 @@ export function SongSearch({ playlistPublicId, onSongAdded }: SongSearchProps) {
         artist: song.artist,
         album: song.album,
         duration_ms: song.duration_ms,
-        preview_url: song.preview_url,
         album_art_url: song.album_art_url,
         spotify_uri: song.spotify_uri,
         spotify_url: song.spotify_url

@@ -30,8 +30,8 @@ interface Song {
   name: string;
   artist: string;
   album?: string;
+  spotify_uri: string;
   duration_ms?: number;
-  preview_url?: string;
   album_art_url?: string;
   created_at: string;
 }
