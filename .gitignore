@@ -176,3 +176,6 @@ cython_debug/
 
 # Ds_store
 .DS_Store
+
+# pyython(pyenv) version
+.python-version
