@@ -43,6 +43,9 @@ CREATE TABLE IF NOT EXISTS spotify_credentials (
     token_expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     last_used_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    last_liked_songs_sync TIMESTAMP WITH TIME ZONE,
+    liked_songs_sync_status VARCHAR(20) DEFAULT 'not_started',
+    liked_songs_count INTEGER DEFAULT 0,
     UNIQUE(user_id)
 );
 
@@ -77,7 +80,11 @@ CREATE TABLE IF NOT EXISTS songs (
     album_art_url TEXT,
     spotify_uri TEXT,
     spotify_url TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    artist_id VARCHAR(255),
+    album_id VARCHAR(255),
+    release_date DATE,
+    genres TEXT[]
 );
 
 CREATE TABLE IF NOT EXISTS playlist_songs (
@@ -86,6 +93,61 @@ CREATE TABLE IF NOT EXISTS playlist_songs (
     position INTEGER NOT NULL,
     added_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (playlist_id, song_id)
+);
+
+CREATE TABLE IF NOT EXISTS user_liked_songs (
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    song_id INTEGER REFERENCES songs(id) ON DELETE CASCADE,
+    liked_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, song_id)
+);
+
+CREATE TABLE IF NOT EXISTS liked_songs_sync_jobs (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    status VARCHAR(20) NOT NULL DEFAULT 'queued',
+    started_at TIMESTAMP WITH TIME ZONE,
+    completed_at TIMESTAMP WITH TIME ZONE,
+    error TEXT,
+    progress FLOAT DEFAULT 0,
+    songs_processed INTEGER DEFAULT 0,
+    songs_total INTEGER DEFAULT 0,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS similarity_presentations (
+    id SERIAL PRIMARY KEY,
+    creator_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    metrics JSON
+);
+
+CREATE TABLE IF NOT EXISTS similarity_presentation_users (
+    presentation_id INTEGER REFERENCES similarity_presentations(id) ON DELETE CASCADE,
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    PRIMARY KEY (presentation_id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS artists (
+    id SERIAL PRIMARY KEY,
+    spotify_id VARCHAR(255) NOT NULL UNIQUE,
+    name VARCHAR(255) NOT NULL,
+    image_url TEXT,
+    genres TEXT[],
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS albums (
+    id SERIAL PRIMARY KEY,
+    spotify_id VARCHAR(255) NOT NULL UNIQUE,
+    name VARCHAR(255) NOT NULL,
+    artist_id VARCHAR(255),
+    image_url TEXT,
+    release_date DATE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
@@ -102,3 +164,16 @@ CREATE INDEX IF NOT EXISTS idx_friendships_user_id ON friendships(user_id);
 CREATE INDEX IF NOT EXISTS idx_friendships_friend_id ON friendships(friend_id);
 CREATE INDEX IF NOT EXISTS idx_friend_requests_sender_id ON friend_requests(sender_id);
 CREATE INDEX IF NOT EXISTS idx_friend_requests_receiver_id ON friend_requests(receiver_id);
+CREATE INDEX IF NOT EXISTS idx_user_liked_songs_user_id ON user_liked_songs(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_liked_songs_song_id ON user_liked_songs(song_id);
+CREATE INDEX IF NOT EXISTS idx_liked_songs_sync_jobs_user_id ON liked_songs_sync_jobs(user_id);
+CREATE INDEX IF NOT EXISTS idx_liked_songs_sync_jobs_status ON liked_songs_sync_jobs(status);
+CREATE INDEX IF NOT EXISTS idx_similarity_presentations_creator_id ON similarity_presentations(creator_id);
+CREATE INDEX IF NOT EXISTS idx_similarity_presentation_users_presentation_id ON similarity_presentation_users(presentation_id);
+CREATE INDEX IF NOT EXISTS idx_similarity_presentation_users_user_id ON similarity_presentation_users(user_id);
+CREATE INDEX IF NOT EXISTS idx_songs_artist_id ON songs(artist_id);
+CREATE INDEX IF NOT EXISTS idx_songs_album_id ON songs(album_id);
+CREATE INDEX IF NOT EXISTS idx_songs_release_date ON songs(release_date);
+CREATE INDEX IF NOT EXISTS idx_artists_spotify_id ON artists(spotify_id);
+CREATE INDEX IF NOT EXISTS idx_albums_spotify_id ON albums(spotify_id);
+CREATE INDEX IF NOT EXISTS idx_albums_artist_id ON albums(artist_id);
