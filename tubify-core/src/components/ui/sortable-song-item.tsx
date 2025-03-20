@@ -9,8 +9,7 @@ import { clearPlaylistDetailCache, clearPlaylistsCache } from "@/loaders/playlis
 
 // song type
 interface Song {
-  id: number;
-  spotify_id: string;
+  id: string;
   name: string;
   artist: string;
   album?: string;

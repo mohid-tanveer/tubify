@@ -30,7 +30,6 @@ class UserPlaylist(BaseModel):
 
 class Song(BaseModel):
     id: int
-    spotify_id: str
     name: str
     artist: str
     album: Optional[str] = None
@@ -176,7 +175,6 @@ async def get_user_playlist(public_id: str):
             COALESCE(
                 (SELECT json_agg(json_build_object(
                     'id', s.id,
-                    'spotify_id', s.spotify_id,
                     'name', s.name,
                     'artist', s.artist,
                     'album', s.album,

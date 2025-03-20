@@ -3,8 +3,7 @@ import { LoaderFunctionArgs } from "react-router-dom"
 
 // define interfaces for the data structure
 interface Song {
-  id: number
-  spotify_id: string
+  id: string
   name: string
   artist: string
   album?: string
