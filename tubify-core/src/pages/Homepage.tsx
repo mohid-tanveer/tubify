@@ -148,7 +148,7 @@ export default function Homepage() {
       <div className="flex-1 flex items-center justify-center">
         <Button 
           asChild
-          className="hover:text-red-500 transition-colors"
+          className="hover:text-blue-700"
         >
           <Link to="/auth">Sign in</Link>
         </Button>

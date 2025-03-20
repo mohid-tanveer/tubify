@@ -9,13 +9,12 @@ import { clearPlaylistDetailCache, clearPlaylistsCache } from "@/loaders/playlis
 
 // song type
 interface Song {
-  id: number;
-  spotify_id: string;
+  id: string;
   name: string;
   artist: string;
   album?: string;
   duration_ms?: number;
-  preview_url?: string;
+  spotify_uri: string;
   album_art_url?: string;
   created_at: string;
 }
@@ -96,8 +95,8 @@ export function SortableSongItem({
   const handlePlayPreview = (e: React.MouseEvent) => {
     e.stopPropagation();
     
-    if (song.preview_url) {
-      window.open(song.preview_url, "_blank");
+    if (song.spotify_uri) {
+      window.open(song.spotify_uri, "_blank");
     }
   };
 
@@ -141,7 +140,7 @@ export function SortableSongItem({
         {song.artist}
       </div>
       <div className="col-span-2 flex items-center justify-end gap-2 text-slate-400 text-xs md:text-sm">
-        {song.preview_url && (
+        {song.spotify_uri && (
           <Button
             size="icon"
             variant="ghost"

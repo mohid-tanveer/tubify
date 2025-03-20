@@ -3,13 +3,12 @@ import api from "@/lib/axios"
 
 // define interfaces for the data structure
 interface Song {
-  id: number
-  spotify_id: string
+  id: string
   name: string
   artist: string
   album?: string
   duration_ms?: number
-  preview_url?: string
+  spotify_uri: string
   album_art_url?: string
   created_at: string
 }
@@ -26,7 +25,7 @@ interface Playlist {
   song_count: number
 }
 
-interface PublicPlaylist extends Playlist {
+interface UserPlaylist extends Playlist {
   songs: Song[]
   username: string
 }
@@ -47,8 +46,8 @@ interface UserProfileData {
   profile: UserProfile
 }
 
-interface PublicPlaylistData {
-  playlist: PublicPlaylist
+interface UserPlaylistData {
+  playlist: UserPlaylist
 }
 
 export interface ProfileData {
@@ -78,10 +77,10 @@ const USER_PROFILE_CACHE_TIMESTAMP_KEY = import.meta.env
 const USER_PLAYLISTS_CACHE_KEY = import.meta.env.VITE_USER_PLAYLISTS_CACHE_KEY
 const USER_PLAYLISTS_CACHE_TIMESTAMP_KEY = import.meta.env
   .VITE_USER_PLAYLISTS_CACHE_TIMESTAMP_KEY
-const PUBLIC_PLAYLIST_CACHE_KEY = import.meta.env.VITE_PUBLIC_PLAYLIST_CACHE_KEY
-const PUBLIC_PLAYLIST_CACHE_TIMESTAMP_KEY = import.meta.env
-  .VITE_PUBLIC_PLAYLIST_CACHE_TIMESTAMP_KEY
-const CACHE_DURATION = parseInt(import.meta.env.VITE_CACHE_DURATION)
+const USER_PLAYLIST_CACHE_KEY = import.meta.env.VITE_USER_PLAYLIST_CACHE_KEY
+const USER_PLAYLIST_CACHE_TIMESTAMP_KEY = import.meta.env
+  .VITE_USER_PLAYLIST_CACHE_TIMESTAMP_KEY
+const USER_CACHE_DURATION = parseInt(import.meta.env.VITE_USER_CACHE_DURATION)
 
 // function to check if cache is valid
 function isCacheValid(timestamp: string | null): boolean {
@@ -91,7 +90,7 @@ function isCacheValid(timestamp: string | null): boolean {
   const now = Date.now()
 
   // cache is valid if it's less than TTL old
-  return now - cachedTime < CACHE_DURATION
+  return now - cachedTime < USER_CACHE_DURATION
 }
 
 // function to get cached user profile
@@ -129,16 +128,14 @@ function getCachedUserPlaylists(username: string): UserPlaylistsData | null {
 }
 
 // function to get cached public playlist
-function getCachedPublicPlaylist(
-  playlistId: string,
-): PublicPlaylistData | null {
+function getCachedUserPlaylist(playlistId: string): UserPlaylistData | null {
   try {
     const cachedData = localStorage.getItem(
-      `${PUBLIC_PLAYLIST_CACHE_KEY}${playlistId}`,
+      `${USER_PLAYLIST_CACHE_KEY}${playlistId}`,
     )
     if (!cachedData) return null
 
-    return JSON.parse(cachedData) as PublicPlaylistData
+    return JSON.parse(cachedData) as UserPlaylistData
   } catch (error) {
     if (process.env.NODE_ENV === "development") {
       console.error("error reading public playlist cache:", error)
@@ -189,18 +186,18 @@ export function setUserPlaylistsCache(
   }
 }
 
-// function to set public playlist cache
-export function setPublicPlaylistCache(
+// function to set user playlist cache
+export function setUserPlaylistCache(
   playlistId: string,
-  data: PublicPlaylistData,
+  data: UserPlaylistData,
 ): void {
   try {
     localStorage.setItem(
-      `${PUBLIC_PLAYLIST_CACHE_KEY}${playlistId}`,
+      `${USER_PLAYLIST_CACHE_KEY}${playlistId}`,
       JSON.stringify(data),
     )
     localStorage.setItem(
-      `${PUBLIC_PLAYLIST_CACHE_TIMESTAMP_KEY}${playlistId}`,
+      `${USER_PLAYLIST_CACHE_TIMESTAMP_KEY}${playlistId}`,
       Date.now().toString(),
     )
   } catch (error) {
@@ -223,9 +220,9 @@ export function clearUserPlaylistsCache(username: string): void {
 }
 
 // function to clear public playlist cache
-export function clearPublicPlaylistCache(playlistId: string): void {
-  localStorage.removeItem(`${PUBLIC_PLAYLIST_CACHE_KEY}${playlistId}`)
-  localStorage.removeItem(`${PUBLIC_PLAYLIST_CACHE_TIMESTAMP_KEY}${playlistId}`)
+export function clearUserPlaylistCache(playlistId: string): void {
+  localStorage.removeItem(`${USER_PLAYLIST_CACHE_KEY}${playlistId}`)
+  localStorage.removeItem(`${USER_PLAYLIST_CACHE_TIMESTAMP_KEY}${playlistId}`)
 }
 
 // loader for user profile
@@ -308,9 +305,7 @@ export async function userPlaylistsLoader({ params }: LoaderFunctionArgs) {
 }
 
 // loader for public playlist detail
-export async function publicPlaylistDetailLoader({
-  params,
-}: LoaderFunctionArgs) {
+export async function userPlaylistDetailLoader({ params }: LoaderFunctionArgs) {
   try {
     const { id } = params
 
@@ -320,16 +315,16 @@ export async function publicPlaylistDetailLoader({
 
     // check if we have valid cached data
     const timestamp = localStorage.getItem(
-      `${PUBLIC_PLAYLIST_CACHE_TIMESTAMP_KEY}${id}`,
+      `${USER_PLAYLIST_CACHE_TIMESTAMP_KEY}${id}`,
     )
     if (isCacheValid(timestamp)) {
-      const cachedData = getCachedPublicPlaylist(id)
+      const cachedData = getCachedUserPlaylist(id)
       if (cachedData) {
         return cachedData
       }
     }
 
-    const response = await api.get(`/api/public/playlists/${id}`)
+    const response = await api.get(`/api/users/playlists/${id}`)
 
     // process the songs data if it's a string
     const playlist = response.data
@@ -347,12 +342,12 @@ export async function publicPlaylistDetailLoader({
     const data = { playlist }
 
     // cache the data
-    setPublicPlaylistCache(id, data)
+    setUserPlaylistCache(id, data)
 
     return data
   } catch (error) {
     if (process.env.NODE_ENV === "development") {
-      console.error(`failed to load public playlist ${params.id}:`, error)
+      console.error(`failed to load user playlist ${params.id}:`, error)
     }
     return {
       playlist: null,

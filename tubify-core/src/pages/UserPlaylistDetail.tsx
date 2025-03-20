@@ -11,7 +11,7 @@ interface Song {
   artist: string
   album?: string
   duration_ms?: number
-  preview_url?: string
+  spotify_uri: string
   album_art_url?: string
   created_at: string
 }
@@ -31,7 +31,7 @@ interface Playlist {
   username: string
 }
 
-export default function PublicPlaylistDetail() {
+export default function UserPlaylistDetail() {
   const { playlist } = useLoaderData() as { playlist: Playlist }
   const navigate = useNavigate()
 

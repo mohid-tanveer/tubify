@@ -1,18 +1,13 @@
-from fastapi import FastAPI, HTTPException, Depends, status, Response, Cookie
+from fastapi import FastAPI
 from dotenv import load_dotenv
 import os, ssl, httpx, uvicorn
-from databases import Database
-from sqlalchemy import create_engine, MetaData
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi_csrf_protect import CsrfProtect
-from fastapi_csrf_protect.exceptions import CsrfProtectError
 from auth import router as auth_router
 from spotify_auth import router as spotify_router
 from playlists import router as playlist_router
 from profile import router as profile_router
 from songs import router as songs_router
 from users import router as users_router
-from public import router as public_router
 from search import router as search_router
 from history import router as history_router
 from database import database, lifespan
@@ -58,7 +53,6 @@ app.include_router(playlist_router)
 app.include_router(profile_router)
 app.include_router(songs_router)
 app.include_router(users_router)
-app.include_router(public_router)
 app.include_router(search_router)
 app.include_router(history_router)
 if __name__ == "__main__":

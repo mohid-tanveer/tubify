@@ -7,15 +7,16 @@ import { toast } from "sonner"
 
 // song type from spotify search
 interface SpotifySearchResult {
-  spotify_id: string
+  id: string
   name: string
   artist: string
   album: string
   duration_ms: number
-  preview_url?: string
   album_art_url?: string
   spotify_uri: string
   spotify_url: string
+  artist_id?: string
+  album_id?: string
 }
 
 // format duration from ms to mm:ss
@@ -79,19 +80,20 @@ export function SongSearch({ playlistPublicId, onSongAdded }: SongSearchProps) {
 
   const handleAddSong = async (song: SpotifySearchResult) => {
     try {
-      setIsAdding(prev => ({ ...prev, [song.spotify_id]: true }))
+      setIsAdding(prev => ({ ...prev, [song.id]: true }))
       
       // prepare song data for api
       const songData = {
-        spotify_id: song.spotify_id,
+        id: song.id,
         name: song.name,
         artist: song.artist,
         album: song.album,
         duration_ms: song.duration_ms,
-        preview_url: song.preview_url,
         album_art_url: song.album_art_url,
         spotify_uri: song.spotify_uri,
-        spotify_url: song.spotify_url
+        spotify_url: song.spotify_url,
+        artist_id: song.artist_id || "",
+        album_id: song.album_id || "",
       }
 
       // add song to playlist
@@ -116,7 +118,7 @@ export function SongSearch({ playlistPublicId, onSongAdded }: SongSearchProps) {
       }
       toast.error("failed to add song to playlist")
     } finally {
-      setIsAdding(prev => ({ ...prev, [song.spotify_id]: false }))
+      setIsAdding(prev => ({ ...prev, [song.id]: false }))
     }
   }
 
@@ -143,7 +145,7 @@ export function SongSearch({ playlistPublicId, onSongAdded }: SongSearchProps) {
           <div className="space-y-2">
             {searchResults.map((song) => (
               <div
-                key={song.spotify_id}
+                key={song.id}
                 className="grid grid-cols-12 gap-4 rounded-md p-2 text-sm hover:bg-slate-900"
               >
                 <div className="col-span-5 flex items-center gap-3">
@@ -179,9 +181,9 @@ export function SongSearch({ playlistPublicId, onSongAdded }: SongSearchProps) {
                     variant="ghost"
                     className="h-7 w-7 rounded-full hover:bg-green-900/30 hover:text-green-500"
                     onClick={() => handleAddSong(song)}
-                    disabled={isAdding[song.spotify_id]}
+                    disabled={isAdding[song.id]}
                   >
-                    {isAdding[song.spotify_id] ? (
+                    {isAdding[song.id] ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
                       <Plus className="h-4 w-4" />

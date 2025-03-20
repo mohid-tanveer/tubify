@@ -47,7 +47,7 @@ export default function UserPlaylists() {
             <div
               key={playlist.id}
               className="group relative overflow-hidden rounded-lg border border-slate-800 bg-slate-900/50 p-4 transition-all hover:border-slate-600"
-              onClick={() => navigate(`/public/playlists/${playlist.public_id}`)}
+              onClick={() => navigate(`/users/playlists/${playlist.public_id}`)}
             >
               <div className="flex items-start gap-4">
                 {/* playlist image */}

@@ -2,6 +2,6 @@ export { playlistsLoader, playlistDetailLoader } from "./playlist-loaders"
 export {
   userProfileLoader,
   userPlaylistsLoader,
-  publicPlaylistDetailLoader,
+  userPlaylistDetailLoader,
   profileLoader,
 } from "./user-loaders"

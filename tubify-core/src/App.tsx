@@ -21,7 +21,7 @@ import {
   PlaylistDetail,
   UserProfile,
   UserPlaylists,
-  PublicPlaylistDetail,
+  UserPlaylistDetail,
 } from "./pages";
 import { Spinner } from "./components/ui/spinner";
 import { AuthContext } from "./contexts/auth";
@@ -32,7 +32,7 @@ import {
   playlistDetailLoader,
   userProfileLoader,
   userPlaylistsLoader,
-  publicPlaylistDetailLoader,
+  userPlaylistDetailLoader,
   profileLoader,
 } from "./loaders";
 import "./App.css";
@@ -156,6 +156,11 @@ const router = createBrowserRouter([
         loader: userPlaylistsLoader,
       },
       {
+        path: "/users/playlists/:id",
+        element: <UserPlaylistDetail />,
+        loader: userPlaylistDetailLoader,
+      },
+      {
         path: "/playlists",
         element: (
           <ProtectedRoute>
@@ -186,11 +191,6 @@ const router = createBrowserRouter([
           // if auth and spotify checks pass, load playlist detail
           return playlistDetailLoader(args);
         },
-      },
-      {
-        path: "/public/playlists/:id",
-        element: <PublicPlaylistDetail />,
-        loader: publicPlaylistDetailLoader,
       },
       {
         path: "/search",
