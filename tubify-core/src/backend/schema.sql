@@ -142,6 +142,13 @@ CREATE TABLE IF NOT EXISTS similarity_presentation_users (
     PRIMARY KEY (presentation_id, user_id)
 );
 
+CREATE TABLE IF NOT EXISTS user_history (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    song_id VARCHAR(255) REFERENCES songs(id) ON DELETE CASCADE,
+    listened_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
 CREATE INDEX IF NOT EXISTS idx_users_oauth ON users(oauth_provider, oauth_id);
@@ -165,3 +172,5 @@ CREATE INDEX IF NOT EXISTS idx_similarity_presentation_users_user_id ON similari
 CREATE INDEX IF NOT EXISTS idx_albums_artist_id ON albums(artist_id);
 CREATE INDEX IF NOT EXISTS idx_songs_artist_id ON songs(artist_id);
 CREATE INDEX IF NOT EXISTS idx_songs_album_id ON songs(album_id);
+CREATE INDEX IF NOT EXISTS idx_user_history_user_id ON user_history(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_history_listened_at ON user_history(listened_at);

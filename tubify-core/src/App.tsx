@@ -22,6 +22,7 @@ import {
   UserProfile,
   UserPlaylists,
   UserPlaylistDetail,
+  History,
 } from "./pages";
 import { Spinner } from "./components/ui/spinner";
 import { AuthContext } from "./contexts/auth";

@@ -14,6 +14,7 @@ export default function History() {
   const navigate = useNavigate();
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchHistory = async () => {
@@ -22,6 +23,7 @@ export default function History() {
         setHistory(response.data);
       } catch (error) {
         console.error("Failed to fetch history:", error);
+        setError("Failed to load history. Please try again later.");
         toast.error("Failed to load history");
       } finally {
         setIsLoading(false);

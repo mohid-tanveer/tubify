@@ -9,7 +9,6 @@ export { default as Playlists } from "./Playlists";
 export { default as PlaylistDetail } from "./PlaylistDetail";
 export { default as UserProfile } from "./UserProfile";
 export { default as UserPlaylists } from "./UserPlaylists";
-export { default as PublicPlaylistDetail } from "./PublicPlaylistDetail";
 export { default as Search } from "./Search";
 export { default as UserPlaylistDetail } from "./UserPlaylistDetail";
 export { default as History } from "./History";
