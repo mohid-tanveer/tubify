@@ -139,13 +139,19 @@ async def create_playlist(
             start_time = time.time()
             # prepare batch data for songs
             songs_to_insert = []
+            albums_placeholder_sections = []
+            albums_to_add_to_database = {}
+            album_artists_to_add_to_database = {}
+            song_artists_to_add_to_database = {}
+            artists_to_add_to_database = set()
             track_ids = []
             track_positions = {}
-            # track to artist/album mapping
-            track_ids_to_artists = {}
-            track_ids_to_albums = {}
-            artist_ids = set()
-            album_ids = set()
+
+            # get all album and artist ids from database
+            existing_albums = await database.fetch_all("SELECT id FROM albums")
+            existing_artists = await database.fetch_all("SELECT id FROM artists")
+            artist_ids = set([artist["id"] for artist in existing_artists])
+            album_ids = set([album["id"] for album in existing_albums])
 
             # get initial playlist data
             results = sp_playlist
@@ -153,50 +159,81 @@ async def create_playlist(
             total_tracks = tracks.get("total", 0)
             print(f"Importing Spotify playlist with {total_tracks} tracks")
 
-            # Check if this is a large playlist (>200 tracks) - if so, use lightweight mode
-            lightweight_mode = total_tracks > 200
-            if lightweight_mode:
-                print(
-                    f"Using lightweight mode for large playlist ({total_tracks} tracks)"
-                )
-
             # collect tracks from first page
             position = 0
             while True:
                 for item in tracks["items"]:
-                    if item["track"]:  # ensure track exists
+                    if item["track"]:
                         track = item["track"]
                         track_ids.append(track["id"])
                         track_positions[track["id"]] = position
                         position += 1
 
-                        # store artist and album ids for later use
-                        if track["artists"]:
-                            artist_id = track["artists"][0]["id"]
-                            track_ids_to_artists[track["id"]] = artist_id
-                            artist_ids.add(artist_id)
+                        for i in range(len(track["artists"])):
+                            artist_id = track["artists"][i]["id"]
+                            if artist_id not in artist_ids:
+                                artist_ids.add(artist_id)
+                                artists_to_add_to_database.add(artist_id)
+                            if i == 0:
+                                song_artists_to_add_to_database[f"song_id_{i}"] = [
+                                    artist_id
+                                ]
+                            else:
+                                song_artists_to_add_to_database[f"song_id_{i}"].append(
+                                    artist_id
+                                )
 
-                        if track["album"]:
-                            album_id = track["album"]["id"]
-                            track_ids_to_albums[track["id"]] = album_id
+                        album_id = track["album"]["id"]
+                        if album_id not in album_ids:
                             album_ids.add(album_id)
+                            raw_date = track["album"]["release_date"]
+                            for i in len(track["album"]["artists"]):
+                                artist_id = track["album"]["artists"][i]["id"]
+                                if artist_id not in artist_ids:
+                                    artist_ids.add(artist_id)
+                                    artists_to_add_to_database.add(artist_id)
+                                if i == 0:
+                                    album_artists_to_add_to_database[
+                                        f"album_id_{i}"
+                                    ] = [artist_id]
+                                else:
+                                    album_artists_to_add_to_database[
+                                        f"album_id_{i}"
+                                    ].append(artist_id)
+                            release_date = None
+                            # handle different spotify date formats
+                            date_parts = raw_date.split("-")
+                            if len(date_parts) == 3:  # full date: YYYY-MM-DD
+                                release_date = f"'{raw_date}'::date"
+                            elif len(date_parts) == 2:  # year-month: YYYY-MM
+                                release_date = (
+                                    f"'{raw_date}-01'::date"  # first day of month given
+                                )
+                            elif (
+                                len(date_parts) == 1 and date_parts[0].isdigit()
+                            ):  # year only: YYYY
+                                release_date = f"'{raw_date}-01-01'::date"  # first day of year given
+                            i = len(albums_placeholder_sections)
+                            albums_to_add_to_database[f"album_id_{i}"] = album_id
+                            albums_to_add_to_database[f"album_name_{i}"] = track[
+                                "album"
+                            ]["name"]
+                            albums_to_add_to_database[f"image_url_{i}"] = track[
+                                "album"
+                            ]["images"][0]["url"]
+
+                            albums_placeholder_sections.append(
+                                f"(:album_id_{i}, :album_name_{i}, :image_url_{i}, {release_date})"
+                            )
 
                         songs_to_insert.append(
                             {
                                 "id": track["id"],
                                 "name": track["name"],
-                                "artist": track["artists"][0]["name"],
-                                "album": track["album"]["name"],
+                                "album_id": track["album"]["id"],
                                 "duration_ms": track["duration_ms"],
-                                "album_art_url": (
-                                    track["album"]["images"][0]["url"]
-                                    if track["album"]["images"]
-                                    else None
-                                ),
                                 "spotify_uri": track["uri"],
                                 "spotify_url": track["external_urls"]["spotify"],
-                                "artist_id": track["artists"][0]["id"],
-                                "album_id": track["album"]["id"],
                             }
                         )
                 # handle pagination if there are more tracks
@@ -205,29 +242,16 @@ async def create_playlist(
                 else:
                     break
 
-            # Keep track of all songs to add to the playlist
+            # keep track of all songs to add to the playlist
             all_playlist_song_ids = [song["id"] for song in songs_to_insert]
 
-            # Get all existing songs, artists and albums in single queries to reduce DB calls
+            # get all existing songs, artists and albums in single queries to reduce DB calls
             existing_songs = await database.fetch_all(
                 "SELECT id FROM songs WHERE id = ANY(:spotify_ids)",
                 values={"spotify_ids": track_ids},
             )
             existing_song_map = {song["id"]: song["id"] for song in existing_songs}
             existing_spotify_ids = set(existing_song_map.keys())
-
-            # Get existing artists and albums
-            existing_artists = await database.fetch_all(
-                "SELECT id FROM artists WHERE id = ANY(:artist_ids)",
-                values={"artist_ids": list(artist_ids)},
-            )
-            existing_artist_ids = {artist["id"] for artist in existing_artists}
-
-            existing_albums = await database.fetch_all(
-                "SELECT id FROM albums WHERE id = ANY(:album_ids)",
-                values={"album_ids": list(album_ids)},
-            )
-            existing_album_ids = {album["id"] for album in existing_albums}
 
             # filter out songs that already exist
             new_songs = [
@@ -236,267 +260,136 @@ async def create_playlist(
                 if song["id"] not in existing_spotify_ids
             ]
 
-            print(
-                f"Found {len(existing_spotify_ids)} existing songs, need to add {len(new_songs)} new songs"
-            )
+            print(f"Need to add {len(new_songs)} new songs")
 
-            # Only perform artist/album operations if we're not in lightweight mode
-            if not lightweight_mode:
-                # Find new artists and albums that need to be inserted
-                new_artist_ids = artist_ids - existing_artist_ids
-                new_album_ids = album_ids - existing_album_ids
-
+            # add new artists and albums that need to be inserted
+            print(f"Need to add {len(artists_to_add_to_database)} new artists")
+            print(f"Need to add {len(albums_to_add_to_database)} new albums")
+            new_artist_ids = list(artists_to_add_to_database)
+            del artists_to_add_to_database
+            # insert new artists in batch first
+            if new_artist_ids:
+                # process artists in batches using Spotify's batch API
+                batch_size = 50
+                artist_batches = [
+                    new_artist_ids[i : i + batch_size]
+                    for i in range(0, len(new_artist_ids), batch_size)
+                ]
                 print(
-                    f"Found {len(existing_artist_ids)} existing artists, need to add {len(new_artist_ids)} new artists"
-                )
-                print(
-                    f"Found {len(existing_album_ids)} existing albums, need to add {len(new_album_ids)} new albums"
+                    f"Will process {len(new_artist_ids)} artists in {len(artist_batches)} batches using batch API"
                 )
 
-                # Insert new artists in batch first (only if not in lightweight mode)
-                if new_artist_ids:
-                    # Process artists in batches using Spotify's batch API
-                    batch_size = 50  # Spotify allows up to 50 artists per request
-                    artist_batches = [
-                        list(new_artist_ids)[i : i + batch_size]
-                        for i in range(0, len(new_artist_ids), batch_size)
-                    ]
-                    print(
-                        f"Will process {len(new_artist_ids)} artists in {len(artist_batches)} batches using batch API"
-                    )
+                try:
+                    artist_data_map = {}
 
-                    try:
-                        artist_data_map = {}
+                    for batch_idx, artist_batch in enumerate(artist_batches):
+                        print(
+                            f"Processing artist batch {batch_idx+1} of {len(artist_batches)}"
+                        )
 
-                        for batch_idx, artist_batch in enumerate(artist_batches):
-                            print(
-                                f"Processing artist batch {batch_idx+1} of {len(artist_batches)}"
-                            )
+                        # use spotify's batch API to get multiple artists in one request
+                        try:
+                            # add a small delay between batch requests to avoid rate limiting
+                            if batch_idx > 0:
+                                print(f"pausing before next artist batch")
+                                await asyncio.sleep(
+                                    1.0
+                                )  # 1 second delay between batches
 
-                            # Use Spotify's batch API to get multiple artists in one request
-                            try:
-                                # Add a small delay between batch requests to avoid rate limiting
-                                if batch_idx > 0:
-                                    print(f"Pausing before next artist batch")
-                                    await asyncio.sleep(
-                                        1.0
-                                    )  # 1 second delay between batches
+                            # get several artists in a single API call
+                            artists_data = sp.artists(artist_batch)
 
-                                # Get several artists in a single API call
-                                artists_data = sp.artists(artist_batch)
+                            if artists_data and "artists" in artists_data:
+                                for artist_data in artists_data["artists"]:
+                                    if artist_data:
+                                        # simple genres processing
+                                        genres = artist_data.get("genres", [])
+                                        artist_id = artist_data["id"]
+                                        artist_data_map[artist_id] = {
+                                            "id": artist_id,
+                                            "name": artist_data["name"],
+                                            "image_url": artist_data["images"][0][
+                                                "url"
+                                            ],
+                                            "genres": genres,
+                                        }
+                        except Exception as e:
+                            print(f"Error fetching artist batch: {str(e)}")
 
-                                if artists_data and "artists" in artists_data:
-                                    for artist_data in artists_data["artists"]:
-                                        if artist_data:
-                                            artist_id = artist_data["id"]
-                                            # Simple genres processing
-                                            genres = artist_data.get("genres", [])
-                                            artist_data_map[artist_id] = {
-                                                "id": artist_id,
-                                                "name": artist_data["name"],
-                                                "image_url": (
-                                                    artist_data["images"][0]["url"]
-                                                    if artist_data.get("images")
-                                                    else None
-                                                ),
-                                                "genres": genres,
-                                            }
-                            except Exception as e:
-                                print(f"Error fetching artist batch: {str(e)}")
-
-                        # Execute batch insert for artists
-                        if artist_data_map:
-                            print(f"Inserting {len(artist_data_map)} artists in batch")
-                            artist_values = {}
-                            placeholders = []
-
-                            for i, (artist_id, artist_data) in enumerate(
-                                artist_data_map.items()
-                            ):
-                                placeholders.append(
-                                    f"(:artist_id_{i}, :artist_name_{i}, :artist_image_{i}, :artist_genres_{i})"
-                                )
-                                artist_values[f"artist_id_{i}"] = artist_id
-                                artist_values[f"artist_name_{i}"] = artist_data["name"]
-                                artist_values[f"artist_image_{i}"] = artist_data[
-                                    "image_url"
-                                ]
-                                artist_values[f"artist_genres_{i}"] = artist_data[
-                                    "genres"
-                                ]
-
-                            artist_query = f"""
-                            INSERT INTO artists (id, name, image_url, genres)
-                            VALUES {", ".join(placeholders)}
-                            ON CONFLICT (id) DO NOTHING
-                            """
-
-                            await database.execute(
-                                query=artist_query, values=artist_values
-                            )
-                    except Exception as e:
-                        print(f"Error batch inserting artists: {str(e)}")
-
-                # Insert albums with batch API where possible
-                if new_album_ids:
-                    # Unfortunately, Spotify doesn't have a batch endpoint for albums
-                    # We'll use smaller batches with delays to avoid rate limiting
-                    batch_size = (
-                        20  # Process fewer albums per batch to avoid rate limits
-                    )
-                    album_batches = [
-                        list(new_album_ids)[i : i + batch_size]
-                        for i in range(0, len(new_album_ids), batch_size)
-                    ]
-                    print(
-                        f"Will process {len(new_album_ids)} albums in {len(album_batches)} batches"
-                    )
-
-                    try:
-                        album_values = {}
+                    # execute batch insert for artists
+                    if artist_data_map:
+                        print(f"Inserting {len(artist_data_map)} artists in batch")
+                        artist_values = {}
                         placeholders = []
 
-                        for batch_idx, album_batch in enumerate(album_batches):
-                            print(
-                                f"Processing album batch {batch_idx+1} of {len(album_batches)}"
+                        for i, (artist_id, artist_data) in enumerate(
+                            artist_data_map.items()
+                        ):
+                            placeholders.append(
+                                f"(:artist_id_{i}, :artist_name_{i}, :artist_image_{i}, :artist_genres_{i})"
                             )
+                            artist_values[f"artist_id_{i}"] = artist_id
+                            artist_values[f"artist_name_{i}"] = artist_data["name"]
+                            artist_values[f"artist_image_{i}"] = artist_data[
+                                "image_url"
+                            ]
+                            artist_values[f"artist_genres_{i}"] = artist_data["genres"]
 
-                            # For albums we still need to process individually
-                            # But we'll use a more efficient approach with fewer API calls
-                            for album_idx, album_id in enumerate(album_batch):
-                                # Add a small delay only every few albums
-                                if album_idx > 0 and album_idx % 5 == 0:
-                                    await asyncio.sleep(
-                                        0.5
-                                    )  # 0.5 second delay every 5 albums
+                        artist_query = f"""
+                        INSERT INTO artists (id, name, image_url, genres)
+                        VALUES {", ".join(placeholders)}
+                        ON CONFLICT (id) DO NOTHING
+                        """
 
-                                try:
-                                    album_data = sp.album(album_id)
-                                    if album_data:
-                                        # Get artist_id (use the first artist if there are multiple)
-                                        artist_id = (
-                                            album_data["artists"][0]["id"]
-                                            if album_data["artists"]
-                                            else None
-                                        )
+                        await database.execute(query=artist_query, values=artist_values)
+                except Exception as e:
+                    print(f"Error batch inserting artists: {str(e)}")
 
-                                        # Handle release_date conversion
-                                        raw_date = album_data.get("release_date", "")
-                                        release_date_sql = "NULL"
+            # insert albums with batch API where possible
+            if albums_to_add_to_database:
+                try:
+                    # execute batch insert for albums
+                    print(f"Inserting {len(albums_to_add_to_database)} albums in batch")
+                    album_query = f"""
+                    INSERT INTO albums (id, name, image_url, release_date)
+                    VALUES {", ".join(albums_placeholder_sections)}
+                    ON CONFLICT (id) DO NOTHING
+                    """
 
-                                        if raw_date:
-                                            try:
-                                                # Handle different Spotify date formats (YYYY-MM-DD, YYYY-MM, YYYY)
-                                                date_parts = raw_date.split("-")
-                                                if (
-                                                    len(date_parts) == 3
-                                                ):  # Full date: YYYY-MM-DD
-                                                    release_date_sql = (
-                                                        f"'{raw_date}'::date"
-                                                    )
-                                                elif (
-                                                    len(date_parts) == 2
-                                                ):  # Year-month: YYYY-MM
-                                                    release_date_sql = f"'{raw_date}-01'::date"  # First day of month
-                                                elif (
-                                                    len(date_parts) == 1
-                                                    and date_parts[0].isdigit()
-                                                ):  # Year only: YYYY
-                                                    release_date_sql = f"'{raw_date}-01-01'::date"  # First day of year
-                                            except Exception as e:
-                                                print(
-                                                    f"Could not parse release date '{raw_date}': {str(e)}"
-                                                )
-                                                release_date_sql = "NULL"
+                    await database.execute(
+                        query=album_query, values=albums_to_add_to_database
+                    )
+                except Exception as e:
+                    print(f"Error batch inserting albums: {str(e)}")
 
-                                        # Add album to batch insert
-                                        i = len(placeholders)
-                                        placeholders.append(
-                                            f"(:album_id_{i}, :album_name_{i}, :artist_id_{i}, :image_url_{i}, {release_date_sql})"
-                                        )
-                                        album_values[f"album_id_{i}"] = album_id
-                                        album_values[f"album_name_{i}"] = album_data[
-                                            "name"
-                                        ]
-                                        album_values[f"artist_id_{i}"] = artist_id
-                                        album_values[f"image_url_{i}"] = (
-                                            album_data["images"][0]["url"]
-                                            if album_data.get("images")
-                                            else None
-                                        )
-                                except Exception as e:
-                                    print(f"Error fetching album {album_id}: {str(e)}")
-
-                            # Add a larger delay between batches
-                            if batch_idx < len(album_batches) - 1:
-                                print(
-                                    f"Completed album batch {batch_idx+1}. Pausing before next batch."
-                                )
-                                await asyncio.sleep(
-                                    2.0
-                                )  # 2 second delay between batches
-
-                        # Execute batch insert for albums
-                        if placeholders:
-                            print(f"Inserting {len(placeholders)} albums in batch")
-                            album_query = f"""
-                            INSERT INTO albums (id, name, artist_id, image_url, release_date)
-                            VALUES {", ".join(placeholders)}
-                            ON CONFLICT (id) DO NOTHING
-                            """
-
-                            await database.execute(
-                                query=album_query, values=album_values
-                            )
-                    except Exception as e:
-                        print(f"Error batch inserting albums: {str(e)}")
-
-            # Insert new songs in batch
+            # insert new songs in batch
             if new_songs:
                 print(f"Inserting {len(new_songs)} songs in batch")
                 try:
-                    # Build placeholder sections for songs
+                    # build placeholder sections for songs
                     placeholder_sections = []
                     values_list = {}
 
                     for i, song in enumerate(new_songs):
-                        # In lightweight mode, we don't need to fetch additional data
-                        artist_id_val = (
-                            song["artist_id"]
-                            if song["artist_id"] in existing_artist_ids
-                            else None
-                        )
-                        album_id_val = (
-                            song["album_id"]
-                            if song["album_id"] in existing_album_ids
-                            else None
-                        )
-
-                        # Add song data to values_list
+                        # add song data to values_list
                         values_list[f"id_{i}"] = song["id"]
                         values_list[f"name_{i}"] = song["name"]
-                        values_list[f"artist_{i}"] = song["artist"]
-                        values_list[f"album_{i}"] = song["album"]
+                        values_list[f"album_id_{i}"] = song["album_id"]
                         values_list[f"duration_ms_{i}"] = song["duration_ms"]
-                        values_list[f"album_art_url_{i}"] = song["album_art_url"]
                         values_list[f"spotify_uri_{i}"] = song["spotify_uri"]
                         values_list[f"spotify_url_{i}"] = song["spotify_url"]
-                        values_list[f"artist_id_{i}"] = artist_id_val
-                        values_list[f"album_id_{i}"] = album_id_val
 
                         placeholder_section = (
-                            f"(:id_{i}, :name_{i}, :artist_{i}, :album_{i}, "
-                            + f":duration_ms_{i}, :album_art_url_{i}, :spotify_uri_{i}, "
-                            + f":spotify_url_{i}, :artist_id_{i}, :album_id_{i})"
+                            f"(:id_{i}, :name_{i}, :album_id_{i}, :duration_ms_{i}, "
+                            + f":spotify_uri_{i}, :spotify_url_{i})"
                         )
                         placeholder_sections.append(placeholder_section)
 
-                    # Execute batch insert for songs
+                    # execute batch insert for songs
                     if placeholder_sections:
                         query = f"""
                         INSERT INTO songs (
-                            id, name, artist, album, duration_ms, album_art_url, 
-                            spotify_uri, spotify_url, artist_id, album_id
+                            id, name, album_id, duration_ms, spotify_uri, spotify_url
                         )
                         VALUES {', '.join(placeholder_sections)}
                         ON CONFLICT (id) DO NOTHING
@@ -507,21 +400,66 @@ async def create_playlist(
                             query=query, values=values_list
                         )
 
-                        # Update the existing_song_map with newly inserted songs
+                        # update the existing_song_map with newly inserted songs
                         for song in inserted_songs:
                             existing_song_map[song["id"]] = song["id"]
                 except Exception as e:
                     print(f"Error batch inserting songs: {str(e)}")
 
-            # Make sure all songs are in the existing_song_map for playlist_songs
-            for track_id in all_playlist_song_ids:
-                if track_id not in existing_song_map:
-                    existing_song_map[track_id] = track_id
+            # insert new song artists
+            if song_artists_to_add_to_database:
+                try:
+                    # execute batch insert for song artists
+                    artist_values = {}
+                    placeholders = []
 
-            # Now insert all playlist_songs relationships
+                    for i, (song_id, artist_ids) in enumerate(
+                        song_artists_to_add_to_database.items()
+                    ):
+                        for artist_id in artist_ids:
+                            placeholders.append(f"(:song_id_{i}, :artist_id_{i})")
+                            artist_values[f"song_id_{i}"] = song_id
+                            artist_values[f"artist_id_{i}"] = artist_id
+
+                    artist_query = f"""
+                    INSERT INTO song_artists (song_id, artist_id)
+                    VALUES {', '.join(placeholders)}
+                    ON CONFLICT (song_id, artist_id) DO NOTHING
+                    """
+
+                    await database.execute(query=artist_query, values=artist_values)
+                except Exception as e:
+                    print(f"Error batch inserting song artists: {str(e)}")
+
+            # insert new album artists
+            if album_artists_to_add_to_database:
+                try:
+                    # execute batch insert for album artists
+                    artist_values = {}
+                    placeholders = []
+
+                    for i, (album_id, artist_ids) in enumerate(
+                        album_artists_to_add_to_database.items()
+                    ):
+                        for artist_id in artist_ids:
+                            placeholders.append(f"(:album_id_{i}, :artist_id_{i})")
+                            artist_values[f"album_id_{i}"] = album_id
+                            artist_values[f"artist_id_{i}"] = artist_id
+
+                    artist_query = f"""
+                    INSERT INTO album_artists (album_id, artist_id)
+                    VALUES {', '.join(placeholders)}
+                    ON CONFLICT (album_id, artist_id) DO NOTHING
+                    """
+
+                    await database.execute(query=artist_query, values=artist_values)
+                except Exception as e:
+                    print(f"Error batch inserting album artists: {str(e)}")
+
+            # now insert all playlist_songs relationships
             print(f"Adding {len(all_playlist_song_ids)} songs to playlist")
             try:
-                # Get the next position
+                # get the next position
                 position = await database.fetch_val(
                     """
                     SELECT COALESCE(MAX(position), -1) + 1 
@@ -531,7 +469,7 @@ async def create_playlist(
                     values={"playlist_id": playlist_id},
                 )
 
-                # Sort by original playlist position
+                # sort by original playlist position
                 sorted_song_ids = []
                 for track_id in all_playlist_song_ids:
                     if track_id in track_positions:
@@ -540,9 +478,9 @@ async def create_playlist(
                 sorted_song_ids.sort(key=lambda x: x[1])
                 sorted_song_ids = [song_id for song_id, _ in sorted_song_ids]
 
-                # Build and execute playlist_songs batch insert
+                # build and execute playlist_songs batch insert
                 if sorted_song_ids:
-                    # Use smaller batches for very large playlists
+                    # use smaller batches for very large playlists
                     batch_size = 500
                     batches = [
                         sorted_song_ids[i : i + batch_size]
@@ -582,7 +520,7 @@ async def create_playlist(
         except Exception as e:
             if os.getenv("DEV_MODE", "false").lower() == "true":
                 print(f"failed to import songs from spotify playlist: {e}")
-            # Log the full traceback
+            # log the full traceback
             import traceback
 
             print(f"Exception traceback: {traceback.format_exc()}")
@@ -610,14 +548,17 @@ async def get_playlist(public_id: str, current_user: User = Depends(get_current_
                 (SELECT json_agg(json_build_object(
                     'id', s.id,
                     'name', s.name,
-                    'artist', s.artist,
-                    'album', s.album,
+                    'artist', a.name,
+                    'album', al.name,
                     'spotify_uri', s.spotify_uri,
                     'duration_ms', s.duration_ms,
-                    'album_art_url', s.album_art_url
+                    'album_art_url', al.image_url
                 ) ORDER BY ps.position)
                 FROM playlist_songs ps
                 JOIN songs s ON ps.song_id = s.id
+                JOIN song_artists sa ON s.id = sa.song_id
+                JOIN artists a ON sa.artist_id = a.id
+                JOIN albums al ON s.album_id = al.id
                 WHERE ps.playlist_id = p.id),
                 '[]'::json
             ) as songs
@@ -792,160 +733,190 @@ async def add_songs(
         values={"song_ids": song_ids},
     )
     existing_song_ids = {song["id"] for song in existing_songs}
+    album_artists_to_add = {}
+    song_artists_to_add = {}
 
     # Process each song
     for i, song in enumerate(songs, start=max_pos + 1):
         if song.id in existing_song_ids:
-            # Song already exists in database
+            # song already exists in database
             song_id = song.id
         else:
-            # Need to insert the song
-            # get artist and album data from spotify
-            artist_id_val = None
-            album_id_val = None
-
             try:
                 # get track details from spotify
                 track_data = sp.track(song.id)
 
                 # process artist
-                if track_data["artists"]:
-                    artist_spotify_id = track_data["artists"][0]["id"]
-                    # check if artist exists
+                i = 0
+                for artist in track_data["artists"]:
+                    artist_id_val = artist["id"]
+                    artist_info = sp.artist(artist_id_val)
                     artist_record = await database.fetch_one(
                         "SELECT id FROM artists WHERE id = :id",
-                        values={"id": artist_spotify_id},
+                        values={"id": artist_id_val},
                     )
-
-                    if artist_record:
-                        artist_id_val = artist_record["id"]
-                    else:
-                        # get artist details from spotify
-                        artist_data = sp.artist(artist_spotify_id)
+                    if not artist_record:
                         # insert artist
-                        artist_id_val = artist_spotify_id
-
-                        # process genres
-                        genres = []
-                        if artist_data.get("genres"):
-                            genres = [
-                                g.replace('"', "")
-                                for g in artist_data.get("genres", [])
-                            ]
-
                         await database.execute(
-                            """
-                            INSERT INTO artists (id, name, image_url, genres)
-                            VALUES (:id, :name, :image_url, :genres)
-                            ON CONFLICT (id) DO NOTHING
-                            """,
+                            "INSERT INTO artists (id, name, image_url, genres) VALUES (:id, :name, :image_url, :genres)",
                             values={
-                                "id": artist_spotify_id,
-                                "name": artist_data["name"],
-                                "image_url": (
-                                    artist_data["images"][0]["url"]
-                                    if artist_data["images"]
-                                    else None
-                                ),
-                                "genres": genres,
+                                "id": artist_id_val,
+                                "name": artist_info["name"],
+                                "image_url": artist_info["images"][0]["url"],
+                                "genres": artist_info.get("genres", []),
                             },
                         )
+                    if i == 0:
+                        song_artists_to_add[f"song_id_{i}"] = [artist_id_val]
+                    else:
+                        song_artists_to_add[f"song_id_{i}"].append(artist_id_val)
+                    i += 1
 
                 # process album
-                if track_data["album"]:
-                    album_spotify_id = track_data["album"]["id"]
-                    # check if album exists
-                    album_record = await database.fetch_one(
-                        "SELECT id FROM albums WHERE id = :id",
-                        values={"id": album_spotify_id},
-                    )
+                album_id = track_data["album"]["id"]
+                # check if album exists
+                album_record = await database.fetch_one(
+                    "SELECT id FROM albums WHERE id = :id",
+                    values={"id": album_id},
+                )
 
-                    if album_record:
-                        album_id_val = album_record["id"]
-                    else:
-                        # get album details from spotify
-                        album_data = sp.album(album_spotify_id)
-                        # insert album
-                        album_id_val = album_spotify_id
+                if not album_record:
+                    # insert album
 
-                        # handle release_date conversion
-                        raw_date = album_data.get("release_date", "")
-                        release_date_sql = "NULL"
-
-                        if raw_date:
-                            try:
-                                # Handle different Spotify date formats (YYYY-MM-DD, YYYY-MM, YYYY)
-                                date_parts = raw_date.split("-")
-                                if len(date_parts) == 3:  # Full date: YYYY-MM-DD
-                                    release_date_sql = f"'{raw_date}'::date"
-                                elif len(date_parts) == 2:  # Year-month: YYYY-MM
-                                    release_date_sql = (
-                                        f"'{raw_date}-01'::date"  # First day of month
-                                    )
-                                elif (
-                                    len(date_parts) == 1 and date_parts[0].isdigit()
-                                ):  # Year only: YYYY
-                                    release_date_sql = (
-                                        f"'{raw_date}-01-01'::date"  # First day of year
-                                    )
-                            except Exception as e:
-                                print(
-                                    f"could not parse release date '{raw_date}': {str(e)}"
-                                )
-                                release_date_sql = "NULL"
-
-                        # Use a different SQL for album insertion with explicit date casting
-                        await database.execute(
-                            f"""
-                            INSERT INTO albums (id, name, artist_id, image_url, release_date)
-                            VALUES (:id, :name, :artist_id, :image_url, {release_date_sql})
-                            ON CONFLICT (id) DO NOTHING
-                            """,
-                            values={
-                                "id": album_spotify_id,
-                                "name": album_data["name"],
-                                "artist_id": artist_id_val,
-                                "image_url": (
-                                    album_data["images"][0]["url"]
-                                    if album_data["images"]
-                                    else None
-                                ),
-                            },
+                    # handle release_date conversion
+                    raw_date = track_data["album"]["release_date"]
+                    release_date_sql = "NULL"
+                    for i in len(track_data["album"]["artists"]):
+                        artist_id = track_data["album"]["artists"][i]["id"]
+                        artist_record = await database.fetch_one(
+                            "SELECT id FROM artists WHERE id = :id",
+                            values={"id": artist_id},
                         )
+                        if not artist_record:
+                            # insert artist
+                            await database.execute(
+                                "INSERT INTO artists (id, name, image_url, genres) VALUES (:id, :name, :image_url, :genres)",
+                                values={
+                                    "id": artist_id,
+                                    "name": artist_info["name"],
+                                    "image_url": artist_info["images"][0]["url"],
+                                    "genres": artist_info.get("genres", []),
+                                },
+                            )
+                        if i == 0:
+                            album_artists_to_add[f"album_id_{i}"] = [artist_id]
+                        else:
+                            album_artists_to_add[f"album_id_{i}"].append(artist_id)
+                    if raw_date:
+                        try:
+                            # Handle different Spotify date formats (YYYY-MM-DD, YYYY-MM, YYYY)
+                            date_parts = raw_date.split("-")
+                            if len(date_parts) == 3:  # Full date: YYYY-MM-DD
+                                release_date_sql = f"'{raw_date}'::date"
+                            elif len(date_parts) == 2:  # Year-month: YYYY-MM
+                                release_date_sql = (
+                                    f"'{raw_date}-01'::date"  # First day of month
+                                )
+                            elif (
+                                len(date_parts) == 1 and date_parts[0].isdigit()
+                            ):  # Year only: YYYY
+                                release_date_sql = (
+                                    f"'{raw_date}-01-01'::date"  # First day of year
+                                )
+                        except Exception as e:
+                            print(
+                                f"could not parse release date '{raw_date}': {str(e)}"
+                            )
+                            release_date_sql = "NULL"
+
+                    # use a different SQL for album insertion with explicit date casting
+                    await database.execute(
+                        f"""
+                        INSERT INTO albums (id, name, image_url, release_date)
+                        VALUES (:id, :name, :image_url, {release_date_sql})
+                        ON CONFLICT (id) DO NOTHING
+                        """,
+                        values={
+                            "id": album_id,
+                            "name": track_data["album"]["name"],
+                            "image_url": (
+                                track_data["album"]["images"][0]["url"]
+                                if track_data["album"]["images"]
+                                else None
+                            ),
+                        },
+                    )
 
                 # insert new song
                 await database.execute(
                     """
                     INSERT INTO songs (
-                        id, name, artist, album, duration_ms, album_art_url, 
-                        spotify_uri, spotify_url, artist_id, album_id
+                        id, name, album_id, duration_ms, spotify_uri, spotify_url
                     )
                     VALUES (
-                        :id, :name, :artist, :album, :duration_ms, :album_art_url,
-                        :spotify_uri, :spotify_url, :artist_id, :album_id
+                        :id, :name, :album_id, :duration_ms, :spotify_uri, :spotify_url
                     )
                     ON CONFLICT (id) DO NOTHING
                     """,
                     values={
                         "id": song.id,
                         "name": song.name,
-                        "artist": song.artist,
-                        "album": song.album,
+                        "album_id": album_id,
                         "duration_ms": song.duration_ms,
-                        "album_art_url": song.album_art_url,
                         "spotify_uri": song.spotify_uri,
                         "spotify_url": song.spotify_url,
-                        "artist_id": artist_id_val,
-                        "album_id": album_id_val,
                     },
                 )
 
-                # Update existing_song_ids after successful insertion
-                existing_song_ids.add(song.id)
                 song_id = song.id
             except Exception as e:
                 print(f"error adding song: {str(e)}")
-                continue  # Skip this song and continue with others
+                continue  # skip this song and continue with others
+        if song_artists_to_add:
+            # insert new song artists
+            try:
+                # execute batch insert for song artists
+                artist_values = {}
+                placeholders = []
+
+                for i, (song_id, artist_ids) in enumerate(song_artists_to_add.items()):
+                    for artist_id in artist_ids:
+                        placeholders.append(f"(:song_id_{i}, :artist_id_{i})")
+                        artist_values[f"song_id_{i}"] = song_id
+                        artist_values[f"artist_id_{i}"] = artist_id
+
+                artist_query = f"""
+                INSERT INTO song_artists (song_id, artist_id)
+                VALUES {', '.join(placeholders)}
+                ON CONFLICT (song_id, artist_id) DO NOTHING
+                """
+                await database.execute(query=artist_query, values=artist_values)
+            except Exception as e:
+                print(f"Error batch inserting song artists: {str(e)}")
+
+        if album_artists_to_add:
+            # insert new album artists
+            try:
+                # execute batch insert for album artists
+                artist_values = {}
+                placeholders = []
+
+                for i, (album_id, artist_ids) in enumerate(
+                    album_artists_to_add.items()
+                ):
+                    for artist_id in artist_ids:
+                        placeholders.append(f"(:album_id_{i}, :artist_id_{i})")
+                        artist_values[f"album_id_{i}"] = album_id
+                        artist_values[f"artist_id_{i}"] = artist_id
+
+                artist_query = f"""
+                INSERT INTO album_artists (album_id, artist_id)
+                VALUES {', '.join(placeholders)}
+                ON CONFLICT (album_id, artist_id) DO NOTHING
+                """
+                await database.execute(query=artist_query, values=artist_values)
+            except Exception as e:
+                print(f"Error batch inserting album artists: {str(e)}")
 
         # add to playlist (whether existing or new)
         try:

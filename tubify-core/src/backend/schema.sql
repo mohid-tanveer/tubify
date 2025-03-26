@@ -73,29 +73,36 @@ CREATE TABLE IF NOT EXISTS profiles (
 CREATE TABLE IF NOT EXISTS artists (
     id VARCHAR(255) NOT NULL PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
-    image_url TEXT,
-    genres TEXT[]
+    image_url TEXT NOT NULL,
+    genres TEXT[] NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS albums (
     id VARCHAR(255) NOT NULL PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
+    image_url TEXT NOT NULL,
+    release_date DATE NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS album_artists (
+    album_id VARCHAR(255) REFERENCES albums(id) ON DELETE CASCADE,
     artist_id VARCHAR(255) REFERENCES artists(id) ON DELETE CASCADE,
-    image_url TEXT,
-    release_date DATE
+    PRIMARY KEY (album_id, artist_id)
 );
 
 CREATE TABLE IF NOT EXISTS songs (
     id VARCHAR(255) NOT NULL PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
-    artist VARCHAR(255) NOT NULL,
-    album VARCHAR(255),
-    duration_ms INTEGER,
-    album_art_url TEXT,
-    spotify_uri TEXT,
-    spotify_url TEXT,
+    album_id VARCHAR(255) REFERENCES albums(id) ON DELETE CASCADE,
+    duration_ms INTEGER NOT NULL,
+    spotify_uri TEXT NOT NULL,
+    spotify_url TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS song_artists (
+    song_id VARCHAR(255) REFERENCES songs(id) ON DELETE CASCADE,
     artist_id VARCHAR(255) REFERENCES artists(id) ON DELETE CASCADE,
-    album_id VARCHAR(255) REFERENCES albums(id) ON DELETE CASCADE
+    PRIMARY KEY (song_id, artist_id)
 );
 
 CREATE TABLE IF NOT EXISTS playlist_songs (
