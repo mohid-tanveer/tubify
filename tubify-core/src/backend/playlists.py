@@ -1116,3 +1116,73 @@ async def reorder_songs(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"error reordering songs: {str(e)}",
         )
+
+
+async def add_to_user_history(user_id: int, song_ids: list[str]):
+    """
+    add songs to the user's listening history.
+    """
+    if not song_ids:
+        return
+
+    # Prepare the query to insert multiple rows
+    values = [{"user_id": user_id, "song_id": song_id} for song_id in song_ids]
+    query = """
+    INSERT INTO user_history (user_id, song_id)
+    VALUES (:user_id, :song_id)
+    ON CONFLICT DO NOTHING
+    """
+    await database.execute_many(query, values)
+
+
+@router.post("/play/playlist/{public_id}")
+async def play_playlist(
+    public_id: str,
+    user: User = Depends(get_current_user),
+):
+    """
+    Handle playlist playback and add all songs in the playlist to the user's listening history.
+    """
+    # Fetch all songs in the playlist
+    songs = await database.fetch_all(
+        """
+        SELECT song_id
+        FROM playlist_songs
+        WHERE playlist_id = (
+            SELECT id FROM playlists WHERE public_id = :public_id
+        )
+        ORDER BY position
+        """,
+        values={"public_id": public_id},
+    )
+    if not songs:
+        raise HTTPException(status_code=404, detail="Playlist not found or empty")
+
+    # Extract song IDs
+    song_ids = [song["song_id"] for song in songs]
+
+    # Add the songs to the user's listening history
+    await add_to_user_history(user.id, song_ids)
+
+    return {"message": f"Playing playlist {public_id}", "song_ids": song_ids}
+
+
+@router.post("/play/song/{song_id}")
+async def play_song(
+    song_id: str,
+    user: User = Depends(get_current_user),
+):
+    """
+    Handle single song playback and add it to the user's listening history.
+    """
+    # Verify the song exists
+    song = await database.fetch_one(
+        "SELECT id FROM songs WHERE id = :song_id", values={"song_id": song_id}
+    )
+    if not song:
+        raise HTTPException(status_code=404, detail="Song not found")
+
+    # Add the song to the user's listening history
+    await add_to_user_history(user.id, [song_id])
+
+    return {"message": f"Playing song {song_id}"}
