@@ -22,11 +22,11 @@ import { DraggableSongList } from "@/components/ui/draggable-song-list"
 interface Song {
   id: string
   name: string
-  artist: string
-  album?: string
-  duration_ms?: number
+  artist: string[]
+  album: string
+  duration_ms: number
   spotify_uri: string
-  album_art_url?: string
+  album_art_url: string
   created_at: string
 }
 

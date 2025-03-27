@@ -5,7 +5,7 @@ import api from "@/lib/axios"
 interface Song {
   id: string
   name: string
-  artist: string
+  artist: string[]
   album?: string
   duration_ms?: number
   spotify_uri: string

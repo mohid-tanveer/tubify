@@ -87,6 +87,7 @@ CREATE TABLE IF NOT EXISTS albums (
 CREATE TABLE IF NOT EXISTS album_artists (
     album_id VARCHAR(255) REFERENCES albums(id) ON DELETE CASCADE,
     artist_id VARCHAR(255) REFERENCES artists(id) ON DELETE CASCADE,
+    list_position INTEGER NOT NULL,
     PRIMARY KEY (album_id, artist_id)
 );
 
@@ -102,6 +103,7 @@ CREATE TABLE IF NOT EXISTS songs (
 CREATE TABLE IF NOT EXISTS song_artists (
     song_id VARCHAR(255) REFERENCES songs(id) ON DELETE CASCADE,
     artist_id VARCHAR(255) REFERENCES artists(id) ON DELETE CASCADE,
+    list_position INTEGER NOT NULL,
     PRIMARY KEY (song_id, artist_id)
 );
 
@@ -169,6 +171,10 @@ CREATE INDEX IF NOT EXISTS idx_liked_songs_sync_jobs_status ON liked_songs_sync_
 CREATE INDEX IF NOT EXISTS idx_similarity_presentations_creator_id ON similarity_presentations(creator_id);
 CREATE INDEX IF NOT EXISTS idx_similarity_presentation_users_presentation_id ON similarity_presentation_users(presentation_id);
 CREATE INDEX IF NOT EXISTS idx_similarity_presentation_users_user_id ON similarity_presentation_users(user_id);
-CREATE INDEX IF NOT EXISTS idx_albums_artist_id ON albums(artist_id);
-CREATE INDEX IF NOT EXISTS idx_songs_artist_id ON songs(artist_id);
 CREATE INDEX IF NOT EXISTS idx_songs_album_id ON songs(album_id);
+CREATE INDEX IF NOT EXISTS idx_song_artists_song_id ON song_artists(song_id);
+CREATE INDEX IF NOT EXISTS idx_song_artists_artist_id ON song_artists(artist_id);
+CREATE INDEX IF NOT EXISTS idx_song_artists_list_position ON song_artists(song_id, list_position);
+CREATE INDEX IF NOT EXISTS idx_album_artists_album_id ON album_artists(album_id);
+CREATE INDEX IF NOT EXISTS idx_album_artists_artist_id ON album_artists(artist_id);
+CREATE INDEX IF NOT EXISTS idx_album_artists_list_position ON album_artists(album_id, list_position);

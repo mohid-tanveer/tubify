@@ -5,11 +5,11 @@ import { Music, Play } from "lucide-react"
 interface Song {
   id: string
   name: string
-  artist: string
-  album?: string
-  duration_ms?: number
-  spotify_uri?: string
-  album_art_url?: string
+  artist: string[]
+  album: string
+  duration_ms: number
+  spotify_uri: string
+  album_art_url: string
   created_at: string
 }
 
@@ -56,7 +56,7 @@ export function SongItem({ song, index }: SongItemProps) {
         </div>
       </div>
       <div className="col-span-3 flex items-center text-slate-300 text-xs md:text-sm">
-        {song.artist}
+        {Array.isArray(song.artist) ? song.artist.join(', ') : song.artist}
       </div>
       <div className="col-span-2 flex items-center justify-end gap-2 text-slate-400 text-xs md:text-sm">
         {song.spotify_uri && (

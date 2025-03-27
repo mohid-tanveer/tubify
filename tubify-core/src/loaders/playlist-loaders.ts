@@ -5,7 +5,7 @@ import { LoaderFunctionArgs } from "react-router-dom"
 interface Song {
   id: string
   name: string
-  artist: string
+  artist: string[]
   album?: string
   duration_ms?: number
   spotify_uri: string
