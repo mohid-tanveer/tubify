@@ -20,8 +20,7 @@ import { DraggableSongList } from "@/components/ui/draggable-song-list"
 
 // song type
 interface Song {
-  id: number
-  spotify_id: string
+  id: string
   name: string
   artist: string
   album?: string

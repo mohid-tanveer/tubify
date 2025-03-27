@@ -3,8 +3,7 @@ import api from "@/lib/axios"
 
 // define interfaces for the data structure
 interface Song {
-  id: number
-  spotify_id: string
+  id: string
   name: string
   artist: string
   album?: string
@@ -129,9 +128,7 @@ function getCachedUserPlaylists(username: string): UserPlaylistsData | null {
 }
 
 // function to get cached public playlist
-function getCachedUserPlaylist(
-  playlistId: string,
-): UserPlaylistData | null {
+function getCachedUserPlaylist(playlistId: string): UserPlaylistData | null {
   try {
     const cachedData = localStorage.getItem(
       `${USER_PLAYLIST_CACHE_KEY}${playlistId}`,
@@ -308,9 +305,7 @@ export async function userPlaylistsLoader({ params }: LoaderFunctionArgs) {
 }
 
 // loader for public playlist detail
-export async function userPlaylistDetailLoader({
-  params,
-}: LoaderFunctionArgs) {
+export async function userPlaylistDetailLoader({ params }: LoaderFunctionArgs) {
   try {
     const { id } = params
 

@@ -30,13 +30,12 @@ class UserPlaylist(BaseModel):
 
 class Song(BaseModel):
     id: int
-    spotify_id: str
     name: str
     artist: str
     album: Optional[str] = None
     duration_ms: Optional[int] = None
     album_art_url: Optional[str] = None
-    created_at: str
+    spotify_uri: Optional[str] = None
 
 
 class UserPlaylist(BaseModel):
@@ -176,17 +175,18 @@ async def get_user_playlist(public_id: str):
             COALESCE(
                 (SELECT json_agg(json_build_object(
                     'id', s.id,
-                    'spotify_id', s.spotify_id,
                     'name', s.name,
-                    'artist', s.artist,
-                    'album', s.album,
+                    'artist', a.name,
+                    'album', al.name,
                     'duration_ms', s.duration_ms,
                     'spotify_uri', s.spotify_uri,
-                    'album_art_url', s.album_art_url,
-                    'created_at', s.created_at
+                    'album_art_url', al.image_url
                 ) ORDER BY ps.position)
                 FROM playlist_songs ps
                 JOIN songs s ON ps.song_id = s.id
+                JOIN song_artists sa ON s.id = sa.song_id
+                JOIN artists a ON sa.artist_id = a.id
+                JOIN albums al ON s.album_id = al.id
                 WHERE ps.playlist_id = p.id),
                 '[]'::json
             ) as songs

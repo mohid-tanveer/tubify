@@ -10,7 +10,7 @@ router = APIRouter(prefix="/api/songs", tags=["songs"])
 
 
 class SpotifySearchResult(BaseModel):
-    spotify_id: str
+    id: str
     name: str
     artist: str
     album: str
@@ -18,6 +18,8 @@ class SpotifySearchResult(BaseModel):
     album_art_url: Optional[str] = None
     spotify_uri: str
     spotify_url: str
+    artist_id: str
+    album_id: str
 
 
 @router.get("/search", response_model=List[SpotifySearchResult])
@@ -49,7 +51,7 @@ async def search_spotify_songs(
 
             tracks.append(
                 SpotifySearchResult(
-                    spotify_id=item["id"],
+                    id=item["id"],
                     name=item["name"],
                     artist=artists,
                     album=item["album"]["name"],
@@ -57,6 +59,8 @@ async def search_spotify_songs(
                     album_art_url=album_art_url,
                     spotify_uri=item["uri"],
                     spotify_url=item["external_urls"]["spotify"],
+                    artist_id=item["artists"][0]["id"] if item["artists"] else "",
+                    album_id=item["album"]["id"] if item["album"] else "",
                 )
             )
 

@@ -25,8 +25,7 @@ import { clearPlaylistDetailCache } from "@/loaders/playlist-loaders";
 
 // song type
 interface Song {
-  id: number;
-  spotify_id: string;
+  id: string;
   name: string;
   artist: string;
   album?: string;
@@ -62,7 +61,7 @@ export function DraggableSongList({
   const [items, setItems] = useState<Song[]>(songs);
   const [isReordering, setIsReordering] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
-  const [activeId, setActiveId] = useState<number | null>(null);
+  const [activeId, setActiveId] = useState<string | null>(null);
   
   // update items when songs prop changes
   useEffect(() => {
@@ -111,7 +110,7 @@ export function DraggableSongList({
 
   const handleDragStart = (event: DragStartEvent) => {
     const { active } = event;
-    setActiveId(Number(active.id));
+    setActiveId(String(active.id));
     setIsDragging(true);
   };
   
