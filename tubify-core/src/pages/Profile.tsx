@@ -276,187 +276,191 @@ export default function Profile() {
   }
 
   return (
-    <div className="overflow-hidden flex flex-col min-h-screen">
+    <div className="overflow-hidden flex flex-col min-h-screen bg-neutral-800">
       <div className="absolute top-0 left-0">
         <TubifyTitle />
       </div>
       <div className="flex-1 flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4 w-full max-w-md px-4">
-          <img
-            src={profile.profile_picture}
-            alt={`${profile.user_name}'s profile`}
-            className="w-32 h-32 rounded-full object-cover"
-          />
+        <div className="flex flex-row gap-8 w-full max-w-6xl px-4">
+          {/* Left column for profile information */}
+          <div className="flex flex-col items-center gap-4 w-1/3">
+            <img
+              src={profile.profile_picture}
+              alt={`${profile.user_name}'s profile`}
+              className="w-32 h-32 rounded-full object-cover"
+            />
 
-          {isEditing ? (
-            <>
-              <div className="w-full space-y-4">
-                <div className="space-y-2">
-                  <label className="text-sm text-white">username</label>
-                  <div className="relative">
-                    <Input
-                      value={editForm.username}
-                      onChange={(e) =>
-                        setEditForm({ ...editForm, username: e.target.value })
-                      }
-                      className={`bg-white/10 border-white/20 text-white ${usernameError ? 'border-red-500' : ''}`}
-                      placeholder="Enter your username"
-                    />
-                    {isCheckingUsername && (
-                      <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                        <Icons.spinner className="h-4 w-4 animate-spin text-white/50" />
-                      </div>
+            {isEditing ? (
+              <>
+                <div className="w-full space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-sm text-white">username</label>
+                    <div className="relative">
+                      <Input
+                        value={editForm.username}
+                        onChange={(e) =>
+                          setEditForm({ ...editForm, username: e.target.value })
+                        }
+                        className={`bg-white/10 border-white/20 text-white ${usernameError ? 'border-red-500' : ''}`}
+                        placeholder="Enter your username"
+                      />
+                      {isCheckingUsername && (
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                          <Icons.spinner className="h-4 w-4 animate-spin text-white/50" />
+                        </div>
+                      )}
+                    </div>
+                    {usernameError && (
+                      <p className="text-sm text-red-500">{usernameError}</p>
                     )}
                   </div>
-                  {usernameError && (
-                    <p className="text-sm text-red-500">{usernameError}</p>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm text-white">bio</label>
-                  <div className="relative">
-                    <Textarea
-                      value={editForm.bio}
-                      onChange={(e) =>
-                        setEditForm({ ...editForm, bio: e.target.value })
-                      }
-                      className="bg-white/10 border-white/20 text-white min-h-[100px]"
-                      placeholder="Tell us about yourself"
-                      maxLength={500}
-                    />
-                    <div className="absolute bottom-2 right-2 text-xs text-white/50">
-                      {editForm.bio.length}/500
+                  <div className="space-y-2">
+                    <label className="text-sm text-white">bio</label>
+                    <div className="relative">
+                      <Textarea
+                        value={editForm.bio}
+                        onChange={(e) =>
+                          setEditForm({ ...editForm, bio: e.target.value })
+                        }
+                        className="bg-white/10 border-white/20 text-white min-h-[100px]"
+                        placeholder="Tell us about yourself"
+                        maxLength={500}
+                      />
+                      <div className="absolute bottom-2 right-2 text-xs text-white/50">
+                        {editForm.bio.length}/500
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  onClick={handleSave}
-                  disabled={isSaving}
-                  variant="spotify"
-                >
-                  <Check className="w-4 h-4 mr-2" />
-                  {isSaving ? "Saving..." : "Save"}
-                </Button>
-                <Button
-                  onClick={handleCancel}
-                  disabled={isSaving}
-                  variant="destructive"
-                >
-                  <X className="w-4 h-4 mr-2" />
-                  Cancel
-                </Button>
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="flex items-center gap-2">
-                <h2 className="text-white text-2xl">{profile.user_name}</h2>
-                <Button
-                  onClick={handleEdit}
-                  variant="ghost"
-                  size="icon"
-                  className="text-white hover:bg-white/30"
-                >
-                  <Pencil className="w-4 h-4" />
-                </Button>
-              </div>
-              <p className="text-white text-center">{profile.bio || "No bio yet"}</p>
-
-              <div className="flex flex-col items-center gap-4">
-                  <h2 className="text-white text-xl">Friends</h2>
-                  <ul className="text-white">
-                    {localFriends.map((friend) => (
-                      <li key={friend.id} className="flex items-center gap-2">
-                        <img
-                          src={friend.profile_picture}
-                          alt={friend.username}
-                          className="w-8 h-8 rounded-full"
-                        />
-                        <span>{friend.username}</span>
-                        <Button
-                          onClick={() => handleRemoveFriend(friend.id)}
-                          variant="destructive"
-                        >
-                          Remove
-                        </Button>
-                      </li>
-                    ))}
-                  </ul>
-                  <h2 className="text-white text-xl">Friend Requests</h2>
-                  <ul className="text-white">
-                    {localFriendRequests.map((request) => (
-                      <li
-                        key={request.sender_id}
-                        className="flex items-center gap-2"
-                      >
-                        <span>{request.username}</span>
-                        <Button
-                          onClick={() =>
-                            handleAcceptFriendRequest(request.sender_id)
-                          }
-                          variant="spotify"
-                        >
-                          Accept
-                        </Button>
-                        <Button
-                          onClick={() =>
-                            handleRejectFriendRequest(request.sender_id)
-                          }
-                          variant="destructive"
-                        >
-                          Reject
-                        </Button>
-                      </li>
-                    ))}
-                  </ul>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      value={searchUsername}
-                      onChange={(e) => setSearchUsername(e.target.value)}
-                      placeholder="Search username"
-                    />
-                    <Button
-                      onClick={handleAddFriend}
-                      disabled={isAddingFriend}
-                      className="text-slate-700 transition-colors"
-                    >
-                      Add Friend
-                    </Button>
-                  </div>
-                </div>
-              
-              <div className="flex flex-col gap-4 w-full">
-                {isSpotifyConnected ? (
+                <div className="flex gap-2">
                   <Button
-                    onClick={() => navigate("/playlists")}
+                    onClick={handleSave}
+                    disabled={isSaving}
                     variant="spotify"
-                    className="flex items-center justify-center gap-2 w-full"
                   >
-                    <Icons.spotify className="mr-2 h-4 w-4" />
-                    My Playlists
+                    <Check className="w-4 h-4 mr-2" />
+                    {isSaving ? "Saving..." : "Save"}
                   </Button>
-                ) : (
                   <Button
-                    className="flex items-center justify-center gap-2 bg-gray-600 hover:bg-gray-700 cursor-not-allowed w-full"
-                    onClick={() => toast.error("Please connect Spotify to access playlists")}
+                    onClick={handleCancel}
+                    disabled={isSaving}
+                    variant="destructive"
                   >
-                    <Icons.spotify className="mr-2 h-4 w-4" />
-                    Connect Spotify to Create Playlists
+                    <X className="w-4 h-4 mr-2" />
+                    Cancel
                   </Button>
-                )}
-                
-                <Button
-                  onClick={handleLogout}
-                  variant="destructive"
-                  className="w-full"
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-white text-2xl">{profile.user_name}</h2>
+                  <Button
+                    onClick={handleEdit}
+                    variant="ghost"
+                    size="icon"
+                    className="text-white hover:bg-white/30"
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </Button>
+                </div>
+                <p className="text-white text-center">{profile.bio || "No bio yet"}</p>
+              </>
+            )}
+          </div>
+
+          {/* Right column for friends and other content */}
+          <div className="flex flex-col items-center gap-4 w-2/3">
+            <h2 className="text-white text-xl">Friends</h2>
+            <ul className="text-white">
+              {localFriends.map((friend) => (
+                <li key={friend.id} className="flex items-center gap-2">
+                  <img
+                    src={friend.profile_picture}
+                    alt={friend.username}
+                    className="w-8 h-8 rounded-full"
+                  />
+                  <span>{friend.username}</span>
+                  <Button
+                    onClick={() => handleRemoveFriend(friend.id)}
+                    variant="destructive"
+                  >
+                    Remove
+                  </Button>
+                </li>
+              ))}
+            </ul>
+            <h2 className="text-white text-xl">Friend Requests</h2>
+            <ul className="text-white">
+              {localFriendRequests.map((request) => (
+                <li
+                  key={request.sender_id}
+                  className="flex items-center gap-2"
                 >
-                  Sign out
+                  <span>{request.username}</span>
+                  <Button
+                    onClick={() =>
+                      handleAcceptFriendRequest(request.sender_id)
+                    }
+                    variant="spotify"
+                  >
+                    Accept
+                  </Button>
+                  <Button
+                    onClick={() =>
+                      handleRejectFriendRequest(request.sender_id)
+                    }
+                    variant="destructive"
+                  >
+                    Reject
+                  </Button>
+                </li>
+              ))}
+            </ul>
+            <div className="flex items-center gap-2">
+              <Input
+                value={searchUsername}
+                onChange={(e) => setSearchUsername(e.target.value)}
+                placeholder="Search username"
+              />
+              <Button
+                onClick={handleAddFriend}
+                disabled={isAddingFriend}
+                className="text-slate-700 transition-colors"
+              >
+                Add Friend
+              </Button>
+            </div>
+
+            <div className="flex flex-col gap-4 w-full">
+              {isSpotifyConnected ? (
+                <Button
+                  onClick={() => navigate("/playlists")}
+                  variant="spotify"
+                  className="flex items-center justify-center gap-2 w-full"
+                >
+                  <Icons.spotify className="mr-2 h-4 w-4" />
+                  My Playlists
                 </Button>
-              </div>
-            </>
-          )}
+              ) : (
+                <Button
+                  className="flex items-center justify-center gap-2 bg-gray-600 hover:bg-gray-700 cursor-not-allowed w-full"
+                  onClick={() => toast.error("Please connect Spotify to access playlists")}
+                >
+                  <Icons.spotify className="mr-2 h-4 w-4" />
+                  Connect Spotify to Create Playlists
+                </Button>
+              )}
+
+              <Button
+                onClick={handleLogout}
+                variant="destructive"
+                className="w-full"
+              >
+                Sign out
+              </Button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
