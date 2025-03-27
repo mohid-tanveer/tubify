@@ -9,7 +9,7 @@ interface Song {
   artist: string
   album?: string
   duration_ms?: number
-  preview_url?: string
+  spotify_uri?: string
   album_art_url?: string
   created_at: string
 }
@@ -60,14 +60,14 @@ export function SongItem({ song, index }: SongItemProps) {
         {song.artist}
       </div>
       <div className="col-span-2 flex items-center justify-end gap-2 text-slate-400 text-xs md:text-sm">
-        {song.preview_url && (
+        {song.spotify_uri && (
           <Button
             size="icon"
             variant="ghost"
             className="h-5 w-5 md:h-6 md:w-6 rounded-full hover:bg-green-900/30 hover:text-green-500"
             onClick={(e) => {
               e.stopPropagation()
-              window.open(song.preview_url, "_blank")
+              window.open(song.spotify_uri, "_blank")
             }}
           >
             <Play className="h-2 w-2 md:h-3 md:w-3" />

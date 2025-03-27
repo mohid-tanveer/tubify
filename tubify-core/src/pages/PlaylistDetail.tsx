@@ -26,7 +26,7 @@ interface Song {
   artist: string
   album?: string
   duration_ms?: number
-  preview_url?: string
+  spotify_uri: string
   album_art_url?: string
   created_at: string
 }

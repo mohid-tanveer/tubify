@@ -1,11 +1,11 @@
 import { RouterProvider, createBrowserRouter, Navigate, useLocation, redirect, LoaderFunction, Outlet } from 'react-router-dom'
 import { useContext, useEffect, useState } from 'react'
-import { Homepage, AuthPage, EmailVerification, ResetPassword, RequestReset, WatchPage, Profile, Search, Playlists, PlaylistDetail, UserProfile, UserPlaylists, PublicPlaylistDetail } from './pages'
+import { Homepage, AuthPage, EmailVerification, ResetPassword, RequestReset, WatchPage, Profile, Search, Playlists, PlaylistDetail, UserProfile, UserPlaylists, UserPlaylistDetail } from './pages'
 import { Spinner } from './components/ui/spinner'
 import { AuthContext } from './contexts/auth'
 import { Toaster } from "@/components/ui/sonner"
 import api from './lib/axios'
-import { playlistsLoader, playlistDetailLoader, userProfileLoader, userPlaylistsLoader, publicPlaylistDetailLoader, profileLoader } from './loaders'
+import { playlistsLoader, playlistDetailLoader, userProfileLoader, userPlaylistsLoader, userPlaylistDetailLoader, profileLoader } from './loaders'
 import './App.css'
 
 interface User {
@@ -103,6 +103,11 @@ const router = createBrowserRouter([
         loader: userPlaylistsLoader,
       },
       {
+        path: "/users/playlists/:id",
+        element: <UserPlaylistDetail />,
+        loader: userPlaylistDetailLoader,
+      },
+      {
         path: "/playlists",
         element: <ProtectedRoute><Playlists /></ProtectedRoute>,
         loader: async (args) => {
@@ -125,11 +130,6 @@ const router = createBrowserRouter([
           // if auth and spotify checks pass, load playlist detail
           return playlistDetailLoader(args)
         },
-      },
-      {
-        path: "/public/playlists/:id",
-        element: <PublicPlaylistDetail />,
-        loader: publicPlaylistDetailLoader,
       },
       {
         path: "/search",

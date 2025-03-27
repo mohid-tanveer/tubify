@@ -19,7 +19,6 @@ class SongBase(BaseModel):
     artist: str
     album: str
     duration_ms: int
-    preview_url: Optional[str] = None
     spotify_uri: str
     spotify_url: str
     album_art_url: Optional[str] = None
@@ -158,7 +157,6 @@ async def create_playlist(
                                 "artist": track["artists"][0]["name"],
                                 "album": track["album"]["name"],
                                 "duration_ms": track["duration_ms"],
-                                "preview_url": track["preview_url"],
                                 "album_art_url": (
                                     track["album"]["images"][0]["url"]
                                     if track["album"]["images"]
@@ -200,7 +198,7 @@ async def create_playlist(
                 values_list = []
 
                 for i, song in enumerate(new_songs):
-                    placeholder = f"(:spotify_id_{i}, :name_{i}, :artist_{i}, :album_{i}, :duration_ms_{i}, :preview_url_{i}, :album_art_url_{i}, :spotify_uri_{i}, :spotify_url_{i})"
+                    placeholder = f"(:spotify_id_{i}, :name_{i}, :artist_{i}, :album_{i}, :duration_ms_{i}, :album_art_url_{i}, :spotify_uri_{i}, :spotify_url_{i})"
                     values_placeholders.append(placeholder)
 
                     for key, value in song.items():
@@ -208,7 +206,7 @@ async def create_playlist(
 
                 # execute batch insert
                 query = f"""
-                INSERT INTO songs (spotify_id, name, artist, album, duration_ms, preview_url, album_art_url, spotify_uri, spotify_url)
+                INSERT INTO songs (spotify_id, name, artist, album, duration_ms, album_art_url, spotify_uri, spotify_url)
                 VALUES {', '.join(values_placeholders)}
                 ON CONFLICT (spotify_id) DO NOTHING
                 RETURNING id, spotify_id
@@ -283,8 +281,8 @@ async def get_playlist(public_id: str, current_user: User = Depends(get_current_
                     'name', s.name,
                     'artist', s.artist,
                     'album', s.album,
+                    'spotify_uri', s.spotify_uri,
                     'duration_ms', s.duration_ms,
-                    'preview_url', s.preview_url,
                     'album_art_url', s.album_art_url
                 ) ORDER BY ps.position)
                 FROM playlist_songs ps
@@ -467,8 +465,8 @@ async def add_songs(
             # insert new song
             song_id = await database.execute(
                 """
-                INSERT INTO songs (spotify_id, name, artist, album, duration_ms, preview_url, album_art_url, spotify_uri, spotify_url)
-                VALUES (:spotify_id, :name, :artist, :album, :duration_ms, :preview_url, :album_art_url, :spotify_uri, :spotify_url)
+                INSERT INTO songs (spotify_id, name, artist, album, duration_ms, album_art_url, spotify_uri, spotify_url)
+                VALUES (:spotify_id, :name, :artist, :album, :duration_ms, :album_art_url, :spotify_uri, :spotify_url)
                 RETURNING id
                 """,
                 values={
@@ -477,7 +475,6 @@ async def add_songs(
                     "artist": song.artist,
                     "album": song.album,
                     "duration_ms": song.duration_ms,
-                    "preview_url": song.preview_url,
                     "album_art_url": song.album_art_url,
                     "spotify_uri": song.spotify_uri,
                     "spotify_url": song.spotify_url,
