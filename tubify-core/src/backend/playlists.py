@@ -140,10 +140,11 @@ async def create_playlist(
             # prepare batch data for songs
             songs_to_insert = []
             albums_placeholder_sections = []
-            albums_to_add_to_database = {}
             album_artists_to_add_to_database = {}
             song_artists_to_add_to_database = {}
             artists_to_add_to_database = set()
+            albums_to_add_to_database = set()
+            album_artists = {}
             track_ids = []
             track_positions = {}
 
@@ -188,72 +189,21 @@ async def create_playlist(
                         album_id = track["album"]["id"]
                         if album_id not in album_ids:
                             album_ids.add(album_id)
-                            raw_date = track["album"]["release_date"]
+                            albums_to_add_to_database.add(album_id)
+                            key = f"{album_id}"
 
-                            # check if this is a "Various Artists" album
-                            is_various_artists_album = False
-                            for album_artist in track["album"]["artists"]:
-                                if album_artist["name"].lower() == "various artists":
-                                    is_various_artists_album = True
-                                    break
+                            if (
+                                track["album"]["artists"][0]["name"].lower()
+                                == "various artists"
+                            ):
+                                album_artists[album_id] = track["artists"]
 
-                            # for "Various Artists" albums, use the track artists instead
-                            if is_various_artists_album:
-                                for i, track_artist in enumerate(track["artists"]):
-                                    artist_id = track_artist["id"]
-                                    if artist_id not in artist_ids:
-                                        artist_ids.add(artist_id)
-                                        artists_to_add_to_database.add(artist_id)
-
-                                    # create an album-artist association with this track artist
-                                    key = f"{album_id}_{artist_id}"
-
-                                    if key not in album_artists_to_add_to_database:
-                                        album_artists_to_add_to_database[key] = {
-                                            "album_id": album_id,
-                                            "artist_id": artist_id,
-                                            "list_position": i,
-                                        }
-                            else:
-                                for i in range(len(track["album"]["artists"])):
-                                    artist_id = track["album"]["artists"][i]["id"]
-                                    if artist_id not in artist_ids:
-                                        artist_ids.add(artist_id)
-                                        artists_to_add_to_database.add(artist_id)
-
-                                    key = f"{album_id}_{i}"
-
-                                    if key not in album_artists_to_add_to_database:
-                                        album_artists_to_add_to_database[key] = {
-                                            "album_id": album_id,
-                                            "artist_id": artist_id,
-                                            "list_position": i,
-                                        }
-                            release_date = None
-                            # handle different spotify date formats
-                            date_parts = raw_date.split("-")
-                            if len(date_parts) == 3:  # full date: YYYY-MM-DD
-                                release_date = f"'{raw_date}'::date"
-                            elif len(date_parts) == 2:  # year-month: YYYY-MM
-                                release_date = (
-                                    f"'{raw_date}-01'::date"  # first day of month given
-                                )
-                            elif (
-                                len(date_parts) == 1 and date_parts[0].isdigit()
-                            ):  # year only: YYYY
-                                release_date = f"'{raw_date}-01-01'::date"  # first day of year given
-                            i = len(albums_placeholder_sections)
-                            albums_to_add_to_database[f"album_id_{i}"] = album_id
-                            albums_to_add_to_database[f"album_name_{i}"] = track[
-                                "album"
-                            ]["name"]
-                            albums_to_add_to_database[f"image_url_{i}"] = track[
-                                "album"
-                            ]["images"][0]["url"]
-
-                            albums_placeholder_sections.append(
-                                f"(:album_id_{i}, :album_name_{i}, :image_url_{i}, {release_date})"
-                            )
+                            if key not in albums_to_add_to_database:
+                                albums_to_add_to_database[key] = {
+                                    "id": album_id,
+                                    "name": track["album"]["name"],
+                                    "image_url": track["album"]["images"][0]["url"],
+                                }
 
                         songs_to_insert.append(
                             {
@@ -263,6 +213,10 @@ async def create_playlist(
                                 "duration_ms": track["duration_ms"],
                                 "spotify_uri": track["uri"],
                                 "spotify_url": track["external_urls"]["spotify"],
+                                "popularity": track["popularity"],
+                                "explicit": track["explicit"],
+                                "track_number": track["track_number"],
+                                "disc_number": track["disc_number"],
                             }
                         )
                 # handle pagination if there are more tracks
@@ -292,14 +246,172 @@ async def create_playlist(
             print(f"Need to add {len(new_songs)} new songs")
 
             # add new artists and albums that need to be inserted
-            print(f"Need to add {len(artists_to_add_to_database)} new artists")
+
             print(f"Need to add {len(albums_to_add_to_database)} new albums")
-            new_artist_ids = list(artists_to_add_to_database)
-            del artists_to_add_to_database
+
+            new_album_ids = list(albums_to_add_to_database)
+            del albums_to_add_to_database
+            # insert new albums in batch first
+            if new_album_ids:
+                # process albums in batches using Spotify's batch API
+                batch_size = 20
+                album_batches = [
+                    new_album_ids[i : i + batch_size]
+                    for i in range(0, len(new_album_ids), batch_size)
+                ]
+                print(
+                    f"Will process {len(new_album_ids)} albums in {len(album_batches)} batches using batch API"
+                )
+
+                album_data_map = {}
+                for batch_idx, album_batch in enumerate(album_batches):
+                    print(
+                        f"Processing album batch {batch_idx+1} of {len(album_batches)}"
+                    )
+
+                    # get several albums in a single API call
+                    try:
+                        # add a small delay between batch requests to avoid rate limiting
+                        if batch_idx > 0:
+                            print(f"pausing before next album batch")
+                            await asyncio.sleep(1.0)  # 1 second delay between batches
+
+                        albums_data = sp.albums(album_batch)
+
+                        if albums_data and "albums" in albums_data:
+                            for album_data in albums_data["albums"]:
+                                if album_data:
+                                    album_id = album_data["id"]
+                                    raw_date = album_data["release_date"]
+
+                                    # check if this is a "Various Artists" album
+                                    is_various_artists_album = False
+                                    for album_artist in album_data["artists"]:
+                                        if (
+                                            album_artist["name"].lower()
+                                            == "various artists"
+                                        ):
+                                            is_various_artists_album = True
+                                            break
+
+                                    # for "Various Artists" albums, use the track artists instead
+                                    if is_various_artists_album:
+                                        for i, track_artist in enumerate(
+                                            album_artists[album_id]
+                                        ):
+                                            artist_id = track_artist["id"]
+                                            if artist_id not in artist_ids:
+                                                artist_ids.add(artist_id)
+                                                artists_to_add_to_database.add(
+                                                    artist_id
+                                                )
+
+                                            # create an album-artist association with this track artist
+                                            key = f"{album_id}_{artist_id}"
+
+                                            if (
+                                                key
+                                                not in album_artists_to_add_to_database
+                                            ):
+                                                album_artists_to_add_to_database[
+                                                    key
+                                                ] = {
+                                                    "album_id": album_id,
+                                                    "artist_id": artist_id,
+                                                    "list_position": i,
+                                                }
+                                    else:
+                                        for i in range(len(album_data["artists"])):
+                                            artist_id = album_data["artists"][i]["id"]
+                                            if artist_id not in artist_ids:
+                                                artist_ids.add(artist_id)
+                                                artists_to_add_to_database.add(
+                                                    artist_id
+                                                )
+
+                                            key = f"{album_id}_{i}"
+
+                                            if (
+                                                key
+                                                not in album_artists_to_add_to_database
+                                            ):
+                                                album_artists_to_add_to_database[
+                                                    key
+                                                ] = {
+                                                    "album_id": album_id,
+                                                    "artist_id": artist_id,
+                                                    "list_position": i,
+                                                }
+                                    release_date = None
+                                    # handle different spotify date formats
+                                    date_parts = raw_date.split("-")
+                                    if len(date_parts) == 3:  # full date: YYYY-MM-DD
+                                        release_date = f"'{raw_date}'::date"
+                                    elif len(date_parts) == 2:  # year-month: YYYY-MM
+                                        release_date = f"'{raw_date}-01'::date"  # first day of month given
+                                    elif (
+                                        len(date_parts) == 1 and date_parts[0].isdigit()
+                                    ):  # year only: YYYY
+                                        release_date = f"'{raw_date}-01-01'::date"  # first day of year given
+                                    album_data_map[album_id] = {
+                                        "id": album_id,
+                                        "name": album_data["name"],
+                                        "image_url": album_data["images"][0]["url"],
+                                        "release_date": release_date,
+                                        "popularity": album_data["popularity"],
+                                        "album_type": album_data["album_type"],
+                                        "total_tracks": album_data["total_tracks"],
+                                    }
+                    except Exception as e:
+                        print(f"Error fetching album batch: {str(e)}")
+                        # add fallback for various albums or other problematic albums
+                        for album_id in album_batch:
+                            if album_id not in album_data_map:
+                                album_data_map[album_id] = {
+                                    "id": album_id,
+                                    "name": "Unknown Album",
+                                    "image_url": "https://via.placeholder.com/300",
+                                    "release_date": None,
+                                    "popularity": 0,
+                                    "album_type": "album",
+                                    "total_tracks": 0,
+                                }
+                # execute batch insert for albums
+                if album_data_map:
+                    print(f"Inserting {len(album_data_map)} albums in batch")
+                    album_values = {}
+                    placeholders = []
+
+                    for i, (album_id, album_data) in enumerate(album_data_map.items()):
+                        placeholders.append(
+                            f"(:album_id_{i}, :album_name_{i}, :album_image_{i}, {album_data['release_date']}, :album_popularity_{i}, :album_type_{i}, :album_total_tracks_{i})"
+                        )
+
+                        album_values[f"album_id_{i}"] = album_id
+                        album_values[f"album_name_{i}"] = album_data["name"]
+                        album_values[f"album_image_{i}"] = album_data["image_url"]
+                        album_values[f"album_popularity_{i}"] = album_data["popularity"]
+                        album_values[f"album_type_{i}"] = album_data["album_type"]
+                        album_values[f"album_total_tracks_{i}"] = album_data[
+                            "total_tracks"
+                        ]
+
+                    album_query = f"""
+                    INSERT INTO albums (id, name, image_url, release_date, popularity, album_type, total_tracks)
+                    VALUES {", ".join(placeholders)}
+                    ON CONFLICT (id) DO NOTHING
+                    """
+                    try:
+                        await database.execute(query=album_query, values=album_values)
+                    except Exception as e:
+                        print(f"Error batch inserting albums: {str(e)}")
+
+            print(f"Need to add {len(artists_to_add_to_database)} new artists")
             # store successfully inserted artist IDs
             inserted_artist_ids = set()
-
-            # insert new artists in batch first
+            new_artist_ids = list(artists_to_add_to_database)
+            del artists_to_add_to_database
+            # insert new artists in batch next
             if new_artist_ids:
                 # process artists in batches using Spotify's batch API
                 batch_size = 50
@@ -351,6 +463,7 @@ async def create_playlist(
                                             "name": artist_data["name"],
                                             "image_url": image_url,
                                             "genres": genres,
+                                            "popularity": artist_data["popularity"],
                                         }
                         except Exception as e:
                             print(f"Error fetching artist batch: {str(e)}")
@@ -363,6 +476,7 @@ async def create_playlist(
                                         "name": "Unknown Artist",
                                         "image_url": "https://via.placeholder.com/300",
                                         "genres": [],
+                                        "popularity": 0,
                                     }
 
                     # execute batch insert for artists
@@ -375,7 +489,7 @@ async def create_playlist(
                             artist_data_map.items()
                         ):
                             placeholders.append(
-                                f"(:artist_id_{i}, :artist_name_{i}, :artist_image_{i}, :artist_genres_{i})"
+                                f"(:artist_id_{i}, :artist_name_{i}, :artist_image_{i}, :artist_genres_{i}, :artist_popularity_{i})"
                             )
                             artist_values[f"artist_id_{i}"] = artist_id
                             artist_values[f"artist_name_{i}"] = artist_data["name"]
@@ -383,9 +497,12 @@ async def create_playlist(
                                 "image_url"
                             ]
                             artist_values[f"artist_genres_{i}"] = artist_data["genres"]
+                            artist_values[f"artist_popularity_{i}"] = artist_data[
+                                "popularity"
+                            ]
 
                         artist_query = f"""
-                        INSERT INTO artists (id, name, image_url, genres)
+                        INSERT INTO artists (id, name, image_url, genres, popularity)
                         VALUES {", ".join(placeholders)}
                         ON CONFLICT (id) DO NOTHING
                         """
@@ -421,23 +538,6 @@ async def create_playlist(
 
             song_artists_to_add_to_database = filtered_song_artists
 
-            # insert albums with batch API where possible
-            if albums_to_add_to_database:
-                try:
-                    # execute batch insert for albums
-                    print(f"Inserting {len(albums_to_add_to_database)} albums in batch")
-                    album_query = f"""
-                    INSERT INTO albums (id, name, image_url, release_date)
-                    VALUES {", ".join(albums_placeholder_sections)}
-                    ON CONFLICT (id) DO NOTHING
-                    """
-
-                    await database.execute(
-                        query=album_query, values=albums_to_add_to_database
-                    )
-                except Exception as e:
-                    print(f"Error batch inserting albums: {str(e)}")
-
             # insert new songs in batch
             if new_songs:
                 print(f"Inserting {len(new_songs)} songs in batch")
@@ -454,10 +554,14 @@ async def create_playlist(
                         values_list[f"duration_ms_{i}"] = song["duration_ms"]
                         values_list[f"spotify_uri_{i}"] = song["spotify_uri"]
                         values_list[f"spotify_url_{i}"] = song["spotify_url"]
+                        values_list[f"popularity_{i}"] = song["popularity"]
+                        values_list[f"explicit_{i}"] = song["explicit"]
+                        values_list[f"track_number_{i}"] = song["track_number"]
+                        values_list[f"disc_number_{i}"] = song["disc_number"]
 
                         placeholder_section = (
                             f"(:id_{i}, :name_{i}, :album_id_{i}, :duration_ms_{i}, "
-                            + f":spotify_uri_{i}, :spotify_url_{i})"
+                            + f":spotify_uri_{i}, :spotify_url_{i}, :popularity_{i}, :explicit_{i}, :track_number_{i}, :disc_number_{i})"
                         )
                         placeholder_sections.append(placeholder_section)
 
@@ -465,7 +569,7 @@ async def create_playlist(
                     if placeholder_sections:
                         query = f"""
                         INSERT INTO songs (
-                            id, name, album_id, duration_ms, spotify_uri, spotify_url
+                            id, name, album_id, duration_ms, spotify_uri, spotify_url, popularity, explicit, track_number, disc_number
                         )
                         VALUES {', '.join(placeholder_sections)}
                         ON CONFLICT (id) DO NOTHING
@@ -887,12 +991,13 @@ async def add_songs(
 
                                 # insert artist
                                 await database.execute(
-                                    "INSERT INTO artists (id, name, image_url, genres) VALUES (:id, :name, :image_url, :genres)",
+                                    "INSERT INTO artists (id, name, image_url, genres, popularity) VALUES (:id, :name, :image_url, :genres, :popularity)",
                                     values={
                                         "id": artist_id_val,
                                         "name": artist_info["name"],
                                         "image_url": image_url,
                                         "genres": artist_info.get("genres", []),
+                                        "popularity": artist_info["popularity"],
                                     },
                                 )
 
@@ -927,17 +1032,11 @@ async def add_songs(
                     # handle release_date conversion
                     raw_date = track_data["album"]["release_date"]
                     release_date_sql = "NULL"
-
-                    # check if this is a "Various Artists" album
-                    is_various_artists_album = False
-                    for album_artist in track_data["album"]["artists"]:
-                        if album_artist["name"].lower() == "various artists":
-                            is_various_artists_album = True
-                            break
+                    album_data = sp.album(album_id)
 
                     # for "Various Artists" albums, use the track artists instead
-                    if is_various_artists_album:
-                        for i, track_artist in enumerate(track_data["artists"]):
+                    if album_data["artists"][0]["name"].lower() == "various artists":
+                        for i, track_artist in enumerate(album_data["artists"]):
                             artist_id = track_artist["id"]
                             try:
                                 # check if artist exists
@@ -957,12 +1056,13 @@ async def add_songs(
                                         image_url = artist_info["images"][0]["url"]
 
                                     await database.execute(
-                                        "INSERT INTO artists (id, name, image_url, genres) VALUES (:id, :name, :image_url, :genres)",
+                                        "INSERT INTO artists (id, name, image_url, genres, popularity) VALUES (:id, :name, :image_url, :genres, :popularity)",
                                         values={
                                             "id": artist_id,
                                             "name": artist_info["name"],
                                             "image_url": image_url,
                                             "genres": artist_info.get("genres", []),
+                                            "popularity": artist_info["popularity"],
                                         },
                                     )
 
@@ -983,9 +1083,7 @@ async def add_songs(
                     else:
                         # normal album processing
                         try:
-                            for i, album_artist in enumerate(
-                                track_data["album"]["artists"]
-                            ):
+                            for i, album_artist in enumerate(album_data["artists"]):
                                 artist_id = album_artist["id"]
                                 try:
                                     artist_record = await database.fetch_one(
@@ -1005,12 +1103,13 @@ async def add_songs(
 
                                         # insert artist
                                         await database.execute(
-                                            "INSERT INTO artists (id, name, image_url, genres) VALUES (:id, :name, :image_url, :genres)",
+                                            "INSERT INTO artists (id, name, image_url, genres, popularity) VALUES (:id, :name, :image_url, :genres, :popularity)",
                                             values={
                                                 "id": artist_id,
                                                 "name": artist_info["name"],
                                                 "image_url": image_url,
                                                 "genres": artist_info.get("genres", []),
+                                                "popularity": artist_info["popularity"],
                                             },
                                         )
 
@@ -1069,14 +1168,17 @@ async def add_songs(
                     # use a different SQL for album insertion with explicit date casting
                     await database.execute(
                         f"""
-                        INSERT INTO albums (id, name, image_url, release_date)
-                        VALUES (:id, :name, :image_url, {release_date_sql})
+                        INSERT INTO albums (id, name, image_url, release_date, popularity, album_type, total_tracks)
+                        VALUES (:id, :name, :image_url, {release_date_sql}, :popularity, :album_type, :total_tracks)
                         ON CONFLICT (id) DO NOTHING
                         """,
                         values={
                             "id": album_id,
                             "name": track_data["album"]["name"],
                             "image_url": album_image_url,
+                            "popularity": album_data["popularity"],
+                            "album_type": album_data["album_type"],
+                            "total_tracks": album_data["total_tracks"],
                         },
                     )
 
@@ -1084,10 +1186,10 @@ async def add_songs(
                 await database.execute(
                     """
                     INSERT INTO songs (
-                        id, name, album_id, duration_ms, spotify_uri, spotify_url
+                        id, name, album_id, duration_ms, spotify_uri, spotify_url, popularity, explicit, track_number, disc_number
                     )
                     VALUES (
-                        :id, :name, :album_id, :duration_ms, :spotify_uri, :spotify_url
+                        :id, :name, :album_id, :duration_ms, :spotify_uri, :spotify_url, :popularity, :explicit, :track_number, :disc_number
                     )
                     ON CONFLICT (id) DO NOTHING
                     """,
@@ -1098,6 +1200,10 @@ async def add_songs(
                         "duration_ms": song.duration_ms,
                         "spotify_uri": song.spotify_uri,
                         "spotify_url": song.spotify_url,
+                        "popularity": track_data["popularity"],
+                        "explicit": track_data["explicit"],
+                        "track_number": track_data["track_number"],
+                        "disc_number": track_data["disc_number"],
                     },
                 )
 

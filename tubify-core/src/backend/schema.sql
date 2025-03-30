@@ -74,14 +74,18 @@ CREATE TABLE IF NOT EXISTS artists (
     id VARCHAR(255) NOT NULL PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     image_url TEXT NOT NULL,
-    genres TEXT[] NOT NULL
+    genres TEXT[] NOT NULL,
+    popularity INTEGER NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS albums (
     id VARCHAR(255) NOT NULL PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     image_url TEXT NOT NULL,
-    release_date DATE NOT NULL
+    release_date DATE NOT NULL,
+    popularity INTEGER NOT NULL,
+    album_type VARCHAR(50) NOT NULL,
+    total_tracks INTEGER NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS album_artists (
@@ -97,7 +101,11 @@ CREATE TABLE IF NOT EXISTS songs (
     album_id VARCHAR(255) REFERENCES albums(id) ON DELETE CASCADE,
     duration_ms INTEGER NOT NULL,
     spotify_uri TEXT NOT NULL,
-    spotify_url TEXT NOT NULL
+    spotify_url TEXT NOT NULL,
+    popularity INTEGER NOT NULL,
+    explicit BOOLEAN DEFAULT FALSE,
+    track_number INTEGER NOT NULL,
+    disc_number INTEGER NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS song_artists (
@@ -151,6 +159,16 @@ CREATE TABLE IF NOT EXISTS similarity_presentation_users (
     PRIMARY KEY (presentation_id, user_id)
 );
 
+CREATE TABLE IF NOT EXISTS user_notifications (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    type VARCHAR(50) NOT NULL,
+    message TEXT NOT NULL,
+    data JSONB,
+    is_read BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
 CREATE INDEX IF NOT EXISTS idx_users_oauth ON users(oauth_provider, oauth_id);
@@ -178,3 +196,5 @@ CREATE INDEX IF NOT EXISTS idx_song_artists_list_position ON song_artists(song_i
 CREATE INDEX IF NOT EXISTS idx_album_artists_album_id ON album_artists(album_id);
 CREATE INDEX IF NOT EXISTS idx_album_artists_artist_id ON album_artists(artist_id);
 CREATE INDEX IF NOT EXISTS idx_album_artists_list_position ON album_artists(album_id, list_position);
+CREATE INDEX IF NOT EXISTS idx_user_notifications_user_id ON user_notifications(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_notifications_is_read ON user_notifications(is_read);
