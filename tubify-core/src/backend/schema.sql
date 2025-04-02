@@ -16,7 +16,6 @@ CREATE TABLE IF NOT EXISTS users (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     last_login TIMESTAMP WITH TIME ZONE
 );
-
 CREATE TABLE IF NOT EXISTS friendships (
     id SERIAL PRIMARY KEY,
     user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
@@ -24,7 +23,6 @@ CREATE TABLE IF NOT EXISTS friendships (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(user_id, friend_id)
 );
-
 CREATE TABLE IF NOT EXISTS friend_requests (
     id SERIAL PRIMARY KEY,
     sender_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
@@ -33,7 +31,6 @@ CREATE TABLE IF NOT EXISTS friend_requests (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(sender_id, receiver_id)
 );
-
 CREATE TABLE IF NOT EXISTS spotify_credentials (
     id SERIAL PRIMARY KEY,
     user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
@@ -48,7 +45,6 @@ CREATE TABLE IF NOT EXISTS spotify_credentials (
     liked_songs_count INTEGER DEFAULT 0,
     UNIQUE(user_id)
 );
-
 CREATE TABLE IF NOT EXISTS playlists (
     id SERIAL PRIMARY KEY,
     user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
@@ -61,7 +57,6 @@ CREATE TABLE IF NOT EXISTS playlists (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
-
 CREATE TABLE IF NOT EXISTS profiles (
     user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
     bio TEXT DEFAULT '',
@@ -69,27 +64,24 @@ CREATE TABLE IF NOT EXISTS profiles (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
-
 CREATE TABLE IF NOT EXISTS artists (
     id VARCHAR(255) NOT NULL PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     image_url TEXT NOT NULL,
     genres TEXT[] NOT NULL
 );
-
 CREATE TABLE IF NOT EXISTS albums (
     id VARCHAR(255) NOT NULL PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     image_url TEXT NOT NULL,
     release_date DATE NOT NULL
 );
-
 CREATE TABLE IF NOT EXISTS album_artists (
     album_id VARCHAR(255) REFERENCES albums(id) ON DELETE CASCADE,
     artist_id VARCHAR(255) REFERENCES artists(id) ON DELETE CASCADE,
+    list_position INTEGER NOT NULL,
     PRIMARY KEY (album_id, artist_id)
 );
-
 CREATE TABLE IF NOT EXISTS songs (
     id VARCHAR(255) NOT NULL PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
@@ -98,13 +90,12 @@ CREATE TABLE IF NOT EXISTS songs (
     spotify_uri TEXT NOT NULL,
     spotify_url TEXT NOT NULL
 );
-
 CREATE TABLE IF NOT EXISTS song_artists (
     song_id VARCHAR(255) REFERENCES songs(id) ON DELETE CASCADE,
     artist_id VARCHAR(255) REFERENCES artists(id) ON DELETE CASCADE,
+    list_position INTEGER NOT NULL,
     PRIMARY KEY (song_id, artist_id)
 );
-
 CREATE TABLE IF NOT EXISTS playlist_songs (
     playlist_id INTEGER REFERENCES playlists(id) ON DELETE CASCADE,
     song_id VARCHAR(255) REFERENCES songs(id) ON DELETE CASCADE,
@@ -112,14 +103,12 @@ CREATE TABLE IF NOT EXISTS playlist_songs (
     added_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (playlist_id, song_id)
 );
-
 CREATE TABLE IF NOT EXISTS user_liked_songs (
     user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
     song_id VARCHAR(255) REFERENCES songs(id) ON DELETE CASCADE,
     liked_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (user_id, song_id)
 );
-
 CREATE TABLE IF NOT EXISTS liked_songs_sync_jobs (
     id SERIAL PRIMARY KEY,
     user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
@@ -132,7 +121,6 @@ CREATE TABLE IF NOT EXISTS liked_songs_sync_jobs (
     songs_total INTEGER DEFAULT 0,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
-
 CREATE TABLE IF NOT EXISTS similarity_presentations (
     id SERIAL PRIMARY KEY,
     creator_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
@@ -142,13 +130,11 @@ CREATE TABLE IF NOT EXISTS similarity_presentations (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     metrics JSON
 );
-
 CREATE TABLE IF NOT EXISTS similarity_presentation_users (
     presentation_id INTEGER REFERENCES similarity_presentations(id) ON DELETE CASCADE,
     user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
     PRIMARY KEY (presentation_id, user_id)
 );
-
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
 CREATE INDEX IF NOT EXISTS idx_users_oauth ON users(oauth_provider, oauth_id);
@@ -169,6 +155,10 @@ CREATE INDEX IF NOT EXISTS idx_liked_songs_sync_jobs_status ON liked_songs_sync_
 CREATE INDEX IF NOT EXISTS idx_similarity_presentations_creator_id ON similarity_presentations(creator_id);
 CREATE INDEX IF NOT EXISTS idx_similarity_presentation_users_presentation_id ON similarity_presentation_users(presentation_id);
 CREATE INDEX IF NOT EXISTS idx_similarity_presentation_users_user_id ON similarity_presentation_users(user_id);
-CREATE INDEX IF NOT EXISTS idx_albums_artist_id ON albums(artist_id);
-CREATE INDEX IF NOT EXISTS idx_songs_artist_id ON songs(artist_id);
 CREATE INDEX IF NOT EXISTS idx_songs_album_id ON songs(album_id);
+CREATE INDEX IF NOT EXISTS idx_song_artists_song_id ON song_artists(song_id);
+CREATE INDEX IF NOT EXISTS idx_song_artists_artist_id ON song_artists(artist_id);
+CREATE INDEX IF NOT EXISTS idx_song_artists_list_position ON song_artists(song_id, list_position);
+CREATE INDEX IF NOT EXISTS idx_album_artists_album_id ON album_artists(album_id);
+CREATE INDEX IF NOT EXISTS idx_album_artists_artist_id ON album_artists(artist_id);
+CREATE INDEX IF NOT EXISTS idx_album_artists_list_position ON album_artists(album_id, list_position);

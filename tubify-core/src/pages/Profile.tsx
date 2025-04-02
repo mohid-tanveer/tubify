@@ -280,10 +280,18 @@ export default function Profile() {
       <div className="absolute top-0 left-0">
         <TubifyTitle />
       </div>
-      <div className="flex-1 flex items-center justify-center">
+      <div className="flex-1 flex flex-col items-center justify-center gap-4">
         <div className="flex flex-row gap-8 w-full max-w-6xl px-4">
           {/* Left column for profile information */}
-          <div className="flex flex-col items-center gap-4 w-1/3">
+          <div className="flex flex-col items-center gap-4 w-1/3 bg-neutral-700 border border-neutral-600 rounded-lg p-6 relative">
+            <Button
+              onClick={handleEdit}
+              variant="ghost"
+              size="icon"
+              className="absolute top-4 right-4 text-white hover:bg-white/30"
+            >
+              <Pencil className="w-4 h-4" />
+            </Button>
             <img
               src={profile.profile_picture}
               alt={`${profile.user_name}'s profile`}
@@ -353,37 +361,36 @@ export default function Profile() {
               </>
             ) : (
               <>
-                <div className="flex items-center gap-2">
-                  <h2 className="text-white text-2xl">{profile.user_name}</h2>
-                  <Button
-                    onClick={handleEdit}
-                    variant="ghost"
-                    size="icon"
-                    className="text-white hover:bg-white/30"
-                  >
-                    <Pencil className="w-4 h-4" />
-                  </Button>
-                </div>
+                <h2 className="text-white text-2xl">{profile.user_name}</h2>
                 <p className="text-white text-center">{profile.bio || "No bio yet"}</p>
               </>
             )}
           </div>
 
           {/* Right column for friends and other content */}
-          <div className="flex flex-col items-center gap-4 w-2/3">
+          <div className="flex flex-col items-center gap-4 w-2/3 bg-neutral-700 border border-neutral-600 rounded-lg p-6">
             <h2 className="text-white text-xl">Friends</h2>
-            <ul className="text-white">
+            <ul className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 w-full">
               {localFriends.map((friend) => (
-                <li key={friend.id} className="flex items-center gap-2">
-                  <img
-                    src={friend.profile_picture}
-                    alt={friend.username}
-                    className="w-8 h-8 rounded-full"
-                  />
-                  <span>{friend.username}</span>
+                <li key={friend.id} className="flex flex-col items-center gap-3 bg-slate-700 border border-neutral-600 rounded-lg hover:bg-slate-800 p-4 transition-[color,box-shadow,background-color,border-color] duration-200">
+                  <div 
+                    className="flex flex-col items-center gap-3 cursor-pointer w-full"
+                    onClick={() => navigate(`/users/${friend.username}`)}
+                  >
+                    <img
+                      src={friend.profile_picture}
+                      alt={friend.username}
+                      className="w-20 h-20 rounded-full object-cover"
+                    />
+                    <span className="text-white text-center font-medium">{friend.username}</span>
+                  </div>
                   <Button
-                    onClick={() => handleRemoveFriend(friend.id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleRemoveFriend(friend.id);
+                    }}
                     variant="destructive"
+                    className="w-full"
                   >
                     Remove
                   </Button>
@@ -452,16 +459,19 @@ export default function Profile() {
                 </Button>
               )}
 
-              <Button
-                onClick={handleLogout}
-                variant="destructive"
-                className="w-full"
-              >
-                Sign out
-              </Button>
+              
             </div>
           </div>
         </div>
+        
+        {/* Centered sign out button */}
+        <Button
+          onClick={handleLogout}
+          variant="destructive"
+          className="w-auto px-8"
+        >
+          Sign out
+        </Button>
       </div>
     </div>
   )
