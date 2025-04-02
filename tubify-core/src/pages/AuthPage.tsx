@@ -59,11 +59,6 @@ export default function AuthPage() {
   const location = useLocation()
   const navigate = useNavigate()
   const { login } = useContext(AuthContext)
-  const [errors, setErrors] = useState<{
-    login?: string
-    register?: string
-    oauth?: string
-  }>({})
   const processingRef = useRef(false)
   const [formValues, setFormValues] = useState<{
     email: string;
@@ -103,10 +98,10 @@ export default function AuthPage() {
     const error = urlParams.get("error")
 
     if (error) {
-      setErrors(prev => ({
-        ...prev,
-        oauth: `Authentication failed: ${error}`
-      }))
+      toast.error(`Authentication failed`, {
+        duration: 10000,
+        id: "oauth-error"
+      })
       navigate("/auth")
       return
     }
@@ -153,10 +148,10 @@ export default function AuthPage() {
           if (process.env.NODE_ENV === "development") {
             console.error("Detailed error:", errorMessage)
           }
-          setErrors(prev => ({
-            ...prev,
-            oauth: errorMessage
-          }))
+          toast.error("Oauth authentication failed. Please try again.", {
+            duration: 10000,
+            id: "oauth-error"
+          })
         } finally {
           // dismiss the loading toast if it's still showing
           toast.dismiss("oauth-processing")
@@ -170,11 +165,6 @@ export default function AuthPage() {
   
   return (
     <div className="grid min-h-screen lg:grid-cols-2">
-      {errors?.oauth && (
-        <div className="absolute top-4 right-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-          {errors.oauth}
-        </div>
-      )}
       <div className="hidden lg:block bg-zinc-900">
         <div className="flex h-full flex-col">
           <div className="flex items-center text-lg p-10 font-medium">

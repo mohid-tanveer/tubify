@@ -363,31 +363,51 @@ export async function userPlaylistDetailLoader({ params }: LoaderFunctionArgs) {
 
 export const profileLoader = async (): Promise<ProfileData> => {
   try {
-    // Fetch profile data
-    const { data: profile } = await api.get("/api/profile")
+    // fetch all profile data in parallel
+    const [
+      profileResponse,
+      friendsResponse,
+      friendRequestsResponse,
+      spotifyStatusResponse,
+    ] = await Promise.all([
+      api.get("/api/profile"),
+      api.get("/api/profile/friends"),
+      api.get("/api/profile/friend-requests"),
+      api.get("/api/spotify/status"),
+    ])
 
-    // Fetch friends
-    const { data: friends } = await api.get("/api/profile/friends")
+    const profile = profileResponse.data
+    const friends = friendsResponse.data
+    const friendRequests = friendRequestsResponse.data
+    const isSpotifyConnected = spotifyStatusResponse.data.is_connected
 
-    // Fetch friend requests
-    const { data: friendRequests } = await api.get(
-      "/api/profile/friend-requests",
-    )
-
-    // Check Spotify connection status
-    const { data: spotifyStatus } = await api.get("/api/spotify/status")
-    const isSpotifyConnected = spotifyStatus.is_connected
-
-    // Fetch liked songs data if Spotify is connected
+    // fetch liked songs data if Spotify is connected
     let likedSongs
     if (isSpotifyConnected) {
       try {
-        const { data: likedSongsCount } = await api.get(
-          "/api/liked-songs/count",
+        // get liked songs count and sync status
+        const [likedSongsCountResponse, syncStatusResponse] = await Promise.all(
+          [
+            api.get("/api/liked-songs/count"),
+            api.get("/api/liked-songs/sync/status"),
+          ],
         )
-        const { data: syncStatus } = await api.get(
-          "/api/liked-songs/sync/status",
-        )
+
+        const likedSongsCount = likedSongsCountResponse.data
+        const syncStatus = syncStatusResponse.data
+
+        // if auto-sync is needed, trigger it in the background
+        if (
+          !syncStatus.is_syncing &&
+          (!syncStatus.last_synced_at ||
+            new Date(syncStatus.last_synced_at).getTime() <
+              Date.now() - 24 * 60 * 60 * 1000)
+        ) {
+          // trigger auto-sync in the background without awaiting
+          api.get("/api/liked-songs/auto-sync").catch((e) => {
+            console.error("background auto-sync check failed:", e)
+          })
+        }
 
         likedSongs = {
           count: likedSongsCount.count || 0,
@@ -399,8 +419,8 @@ export const profileLoader = async (): Promise<ProfileData> => {
           lastSynced: syncStatus.last_synced_at,
         }
       } catch (error) {
-        // If there's an error fetching liked songs data, set default values
-        console.error("Error fetching liked songs data:", error)
+        // if there's an error fetching liked songs data, set default values
+        console.error("error fetching liked songs data:", error)
         likedSongs = {
           count: 0,
           syncStatus: "not_synced",
@@ -419,7 +439,7 @@ export const profileLoader = async (): Promise<ProfileData> => {
   } catch (error) {
     console.error("Failed to load profile data:", error)
 
-    // Return default values on error
+    // return default values on error
     return {
       profile: null,
       friends: [],

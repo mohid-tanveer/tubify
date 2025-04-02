@@ -39,55 +39,106 @@ export function LikedSongsSync({ initialStatus }: LikedSongsSyncProps) {
 
   // poll for sync status when syncing
   useEffect(() => {
-    let intervalId: NodeJS.Timeout
-
-    const fetchStatus = async () => {
+    let intervalId: NodeJS.Timeout | undefined
+    let isComponentMounted = true
+    
+    const fetchStatus = async (): Promise<number | null> => {
       try {
         const response = await api.get("/api/liked-songs/sync/status")
-        setStatus(response.data)
+        if (!isComponentMounted) return null
+        
+        // only update state if there are actual changes to avoid unnecessary re-renders
+        const newStatus = response.data
+        
+        // compare relevant fields before updating state
+        if (!status || 
+            status.is_syncing !== newStatus.is_syncing ||
+            status.progress !== newStatus.progress ||
+            status.total_songs !== newStatus.total_songs ||
+            status.processed_songs !== newStatus.processed_songs ||
+            status.last_synced_at !== newStatus.last_synced_at) {
+          setStatus(newStatus)
+        }
+        
         setIsLoading(false)
 
         // if syncing, continue polling
-        if (response.data.is_syncing && response.data.progress < 0.99) {
+        if (newStatus.is_syncing && newStatus.progress < 0.99) {
           setIsSyncing(true)
+          
+          // determine polling interval based on progress
+          // more frequent updates when progress is active, less frequent at start
+          if (newStatus.total_songs === 0) {
+            // starting phase - poll less frequently
+            return 5000
+          } else {
+            // active syncing phase - poll more frequently
+            return 2000
+          }
         } else {
-          // Stop polling when sync is complete or progress is at 100%
+          // stop polling when sync is complete or progress is at 100%
           setIsSyncing(false)
           
-          // If progress is at 100% but status still says syncing, 
+          // if progress is at 100% but status still says syncing, 
           // the job might be in the finishing stage
-          if (response.data.is_syncing && response.data.progress >= 0.99) {
-            // Get the status again after a short delay to confirm completion
+          if (newStatus.is_syncing && newStatus.progress >= 0.99) {
+            // get the status again after a short delay to confirm completion
             setTimeout(async () => {
+              if (!isComponentMounted) return
+              
               try {
                 const finalResponse = await api.get("/api/liked-songs/sync/status")
-                setStatus(finalResponse.data)
+                if (isComponentMounted) {
+                  setStatus(finalResponse.data)
+                }
               } catch (error) {
                 console.error("Failed to get final sync status:", error)
               }
             }, 3000)
           }
+          
+          return null  // no further polling needed
         }
       } catch (error) {
+        if (!isComponentMounted) return null
+        
         setIsLoading(false)
         setIsSyncing(false)
         setError("failed to fetch sync status")
         console.error("failed to fetch sync status:", error)
+        
+        return null  // stop polling on error
       }
     }
 
     // fetch initially
-    fetchStatus()
-
-    // set up polling if syncing
-    if (isSyncing) {
-      intervalId = setInterval(fetchStatus, 3000) // poll every 3 seconds
+    let nextPollTimeout: number | null = 3000
+    
+    const poll = async () => {
+      nextPollTimeout = await fetchStatus()
+      
+      // clear any existing interval
+      if (intervalId) {
+        clearTimeout(intervalId)
+        intervalId = undefined
+      }
+      
+      // schedule next poll if needed
+      if (isComponentMounted && nextPollTimeout !== null) {
+        intervalId = setTimeout(poll, nextPollTimeout)
+      }
     }
+    
+    // start polling
+    poll()
 
     return () => {
-      if (intervalId) clearInterval(intervalId)
+      isComponentMounted = false
+      if (intervalId) {
+        clearTimeout(intervalId)
+      }
     }
-  }, [isSyncing])
+  }, [status])
 
   const handleSync = async () => {
     try {

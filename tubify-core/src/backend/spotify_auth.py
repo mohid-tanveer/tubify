@@ -170,7 +170,6 @@ async def spotify_callback(
 
         # start background task to sync liked songs
         if background_tasks:
-            # Import the function here to avoid circular imports
             from liked_songs import sync_liked_songs_background
 
             background_tasks.add_task(sync_liked_songs_background, user_id, sp)

@@ -11,9 +11,7 @@ from auth import get_current_user, User
 from database import database
 
 
-# Create a function to get the Spotify client that can be called inside functions
 def get_spotify_client():
-    # We import here to avoid circular import
     from spotify_auth import get_spotify_client as spotify_auth_get_spotify_client
 
     return spotify_auth_get_spotify_client
@@ -115,7 +113,7 @@ async def sync_liked_songs_background(user_id: int, spotify_client: spotipy.Spot
 
             for idx, item in enumerate(results["items"]):
                 track = item["track"]
-                added_at = item["added_at"]  # ISO 8601 format
+                added_at = item["added_at"]
 
                 # process artists
                 for artist in track["artists"]:
@@ -123,8 +121,8 @@ async def sync_liked_songs_background(user_id: int, spotify_client: spotipy.Spot
                     artists_map[artist_id] = {
                         "id": artist_id,
                         "name": artist["name"],
-                        "image_url": "https://placeholder.com/artist",  # placeholder
-                        "popularity": 0,  # placeholder
+                        "image_url": "https://placeholder.com/artist",
+                        "popularity": 0,
                     }
 
                     # create artist-song relationship
@@ -205,7 +203,6 @@ async def sync_liked_songs_background(user_id: int, spotify_client: spotipy.Spot
             # add a small delay to prevent rate limiting
             await asyncio.sleep(0.5)
 
-        # get artist genres - we need to make additional API calls for this
         artist_ids = list(artists_map.keys())
         for i in range(0, len(artist_ids), 50):
             batch = artist_ids[i : i + 50]
@@ -226,7 +223,6 @@ async def sync_liked_songs_background(user_id: int, spotify_client: spotipy.Spot
                     if artist.get("genres"):
                         artist_genre_map[artist["id"]] = set(artist["genres"])
 
-        # now start inserting into database
         async with database.transaction():
             # 1. insert artists
             for artist_id, artist in artists_map.items():
@@ -278,7 +274,6 @@ async def sync_liked_songs_background(user_id: int, spotify_client: spotipy.Spot
 
             # 4. insert genres and artist-genre relationships
             if artist_genre_map:
-                # First get all unique genres
                 unique_genres = list(
                     set(
                         genre
@@ -287,7 +282,7 @@ async def sync_liked_songs_background(user_id: int, spotify_client: spotipy.Spot
                     )
                 )
 
-                # Insert any new genres
+                # insert any new genres
                 await database.execute(
                     """
                     INSERT INTO genres (name)
@@ -297,7 +292,7 @@ async def sync_liked_songs_background(user_id: int, spotify_client: spotipy.Spot
                     {"names": unique_genres},
                 )
 
-                # Get genre IDs
+                # get genre IDs
                 genre_id_rows = await database.fetch_all(
                     """
                     SELECT name, id 
@@ -307,10 +302,10 @@ async def sync_liked_songs_background(user_id: int, spotify_client: spotipy.Spot
                     {"names": unique_genres},
                 )
 
-                # Create name to ID mapping
+                # create name to ID mapping
                 genre_id_map = {row["name"]: row["id"] for row in genre_id_rows}
 
-                # Insert artist-genre relationships
+                # insert artist-genre relationships
                 for artist_id, genres in artist_genre_map.items():
                     for genre in genres:
                         genre_id = genre_id_map.get(genre)
@@ -379,12 +374,10 @@ async def sync_liked_songs_background(user_id: int, spotify_client: spotipy.Spot
             # 7. insert user-liked songs relationships
             for song_id, song in songs_map.items():
                 try:
-                    # Parse the ISO 8601 datetime
                     added_at_datetime = datetime.fromisoformat(
                         song["added_at"].replace("Z", "+00:00")
                     )
                 except (ValueError, TypeError):
-                    # Default to current time if parsing fails
                     added_at_datetime = datetime.now(timezone.utc)
 
                 await database.execute(
@@ -449,7 +442,6 @@ async def sync_liked_songs_background(user_id: int, spotify_client: spotipy.Spot
             {"user_id": user_id},
         )
 
-        # Log the error
         print(f"Error syncing liked songs for user {user_id}: {error_message}")
         print(f"Exception traceback: {e}")
 
@@ -546,14 +538,14 @@ async def get_sync_status(user: User = Depends(get_current_user)):
             "processed_songs": 0,
         }
 
-    # If progress is at or near 100% but status is still "running",
+    # if progress is at or near 100% but status is still "running",
     # the job is likely complete but wasn't properly updated
     if (
         job["status"] == "running"
         and job["progress"] >= 0.99
         and job["songs_processed"] >= job["songs_total"]
     ):
-        # Auto-fix the status
+        # auto-fix the status
         await database.execute(
             """
             UPDATE liked_songs_sync_jobs 
@@ -565,7 +557,7 @@ async def get_sync_status(user: User = Depends(get_current_user)):
             {"job_id": job["id"]},
         )
 
-        # Also update spotify credentials
+        # also update spotify credentials
         await database.execute(
             """
             UPDATE spotify_credentials 
@@ -576,7 +568,7 @@ async def get_sync_status(user: User = Depends(get_current_user)):
             {"user_id": user.id},
         )
 
-        # Update job in memory to reflect changes
+        # update job in memory to reflect changes
         job = dict(job)
         job["status"] = "completed"
         job["progress"] = 1.0

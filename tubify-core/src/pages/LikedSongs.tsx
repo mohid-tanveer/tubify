@@ -178,7 +178,7 @@ export default function LikedSongs() {
                 ))}
               </div>
               
-              {/* Pagination */}
+              {/* pagination */}
               {maxPage > 1 && (
                 <div className="mt-8 flex items-center justify-center gap-4">
                   <Button

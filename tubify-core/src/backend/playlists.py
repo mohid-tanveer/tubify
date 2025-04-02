@@ -448,9 +448,11 @@ async def create_playlist(
                                 for artist_data in artists_data["artists"]:
                                     if artist_data:
                                         # simple genres processing
-                                        genres = artist_data.get("genres", [])
                                         artist_id = artist_data["id"]
-                                        artist_genre_map[artist_id] = set(genres)
+                                        if artist_data.get("genres"):
+                                            artist_genre_map[artist_id] = set(
+                                                artist_data["genres"]
+                                            )
 
                                         # handle case where artist doesn't have images
                                         image_url = "https://via.placeholder.com/300"  # default image
@@ -1026,8 +1028,10 @@ async def add_songs(
                                     and len(artist_info["images"]) > 0
                                 ):
                                     image_url = artist_info["images"][0]["url"]
-                                genres = artist_info.get("genres", [])
-                                artist_genre_map[artist_id_val] = set(genres)
+                                if artist_info.get("genres"):
+                                    artist_genre_map[artist_id] = set(
+                                        artist_info["genres"]
+                                    )
 
                                 # insert artist
                                 await database.execute(
@@ -1093,8 +1097,10 @@ async def add_songs(
                                         and len(artist_info["images"]) > 0
                                     ):
                                         image_url = artist_info["images"][0]["url"]
-                                    genres = artist_info.get("genres", [])
-                                    artist_genre_map[artist_id] = set(genres)
+                                    if artist_info.get("genres"):
+                                        artist_genre_map[artist_id] = set(
+                                            artist_info["genres"]
+                                        )
 
                                     await database.execute(
                                         "INSERT INTO artists (id, name, image_url, popularity) VALUES (:id, :name, :image_url, :popularity)",
@@ -1141,8 +1147,10 @@ async def add_songs(
                                         ):
                                             image_url = artist_info["images"][0]["url"]
 
-                                        genres = artist_info.get("genres", [])
-                                        artist_genre_map[artist_id] = set(genres)
+                                        if artist_info.get("genres"):
+                                            artist_genre_map[artist_id] = set(
+                                                artist_info["genres"]
+                                            )
 
                                         # insert artist
                                         await database.execute(
