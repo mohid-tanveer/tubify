@@ -106,7 +106,6 @@ export function SongSearch({ playlistPublicId, onSongAdded }: SongSearchProps) {
       if (response.data.status === "success") {
         toast.success(`added "${song.name}" to playlist`)
       } else if (response.data.status === "partial") {
-        // This shouldn't normally happen with a single song, but just in case
         if (response.data.message.includes("already in the playlist")) {
           toast.warning(response.data.message)
         } else {

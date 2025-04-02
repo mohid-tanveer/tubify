@@ -1,6 +1,6 @@
 import { RouterProvider, createBrowserRouter, Navigate, useLocation, redirect, LoaderFunction, Outlet } from 'react-router-dom'
 import { useContext, useEffect, useState } from 'react'
-import { Homepage, AuthPage, EmailVerification, ResetPassword, RequestReset, WatchPage, Profile, Search, Playlists, PlaylistDetail, UserProfile, UserPlaylists, UserPlaylistDetail } from './pages'
+import { Homepage, AuthPage, EmailVerification, ResetPassword, RequestReset, WatchPage, Profile, Search, Playlists, PlaylistDetail, UserProfile, UserPlaylists, UserPlaylistDetail, LikedSongs } from './pages'
 import { Spinner } from './components/ui/spinner'
 import { AuthContext } from './contexts/auth'
 import { Toaster } from "@/components/ui/sonner"
@@ -134,6 +134,17 @@ const router = createBrowserRouter([
       {
         path: "/search",
         element: <ProtectedRoute><Search /></ProtectedRoute>,
+      },
+      {
+        path: "/liked-songs",
+        element: <ProtectedRoute><LikedSongs /></ProtectedRoute>,
+        loader: async (args) => {
+          // first check auth and spotify status
+          const result = await fullAuthLoader(args)
+          if (result) return result // if it returns a redirect, pass it through
+          
+          return null
+        },
       },
     ],
   },

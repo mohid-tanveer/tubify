@@ -74,7 +74,6 @@ CREATE TABLE IF NOT EXISTS artists (
     id VARCHAR(255) NOT NULL PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     image_url TEXT NOT NULL,
-    genres TEXT[] NOT NULL,
     popularity INTEGER NOT NULL
 );
 
@@ -106,6 +105,17 @@ CREATE TABLE IF NOT EXISTS songs (
     explicit BOOLEAN DEFAULT FALSE,
     track_number INTEGER NOT NULL,
     disc_number INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS genres (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) UNIQUE NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS artist_genres (
+    artist_id VARCHAR(255) REFERENCES artists(id) ON DELETE CASCADE,
+    genre_id INTEGER REFERENCES genres(id) ON DELETE CASCADE,
+    PRIMARY KEY (artist_id, genre_id)
 );
 
 CREATE TABLE IF NOT EXISTS song_artists (
@@ -198,3 +208,10 @@ CREATE INDEX IF NOT EXISTS idx_album_artists_artist_id ON album_artists(artist_i
 CREATE INDEX IF NOT EXISTS idx_album_artists_list_position ON album_artists(album_id, list_position);
 CREATE INDEX IF NOT EXISTS idx_user_notifications_user_id ON user_notifications(user_id);
 CREATE INDEX IF NOT EXISTS idx_user_notifications_is_read ON user_notifications(is_read);
+CREATE INDEX IF NOT EXISTS idx_artist_genres_artist_id ON artist_genres(artist_id);
+CREATE INDEX IF NOT EXISTS idx_artist_genres_genre_id ON artist_genres(genre_id);
+CREATE INDEX IF NOT EXISTS idx_genres_name ON genres(name);
+CREATE INDEX IF NOT EXISTS idx_user_liked_songs_liked_at ON user_liked_songs(user_id, liked_at);
+CREATE INDEX IF NOT EXISTS idx_artist_genres_composite ON artist_genres(genre_id, artist_id);
+CREATE INDEX IF NOT EXISTS idx_songs_popularity ON songs(popularity);
+CREATE INDEX IF NOT EXISTS idx_genres_id_to_name ON genres(id);

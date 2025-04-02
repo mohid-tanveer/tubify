@@ -142,6 +142,7 @@ async def create_playlist(
             albums_placeholder_sections = []
             album_artists_to_add_to_database = {}
             song_artists_to_add_to_database = {}
+            artist_genre_map = {}
             artists_to_add_to_database = set()
             albums_to_add_to_database = set()
             album_artists = {}
@@ -158,7 +159,7 @@ async def create_playlist(
             results = sp_playlist
             tracks = results["tracks"]
             total_tracks = tracks.get("total", 0)
-            print(f"Importing Spotify playlist with {total_tracks} tracks")
+            # print(f"Importing Spotify playlist with {total_tracks} tracks")
 
             # collect tracks from first page
             position = 0
@@ -243,11 +244,11 @@ async def create_playlist(
                 if song["id"] not in existing_spotify_ids
             ]
 
-            print(f"Need to add {len(new_songs)} new songs")
+            # print(f"Need to add {len(new_songs)} new songs")
 
             # add new artists and albums that need to be inserted
 
-            print(f"Need to add {len(albums_to_add_to_database)} new albums")
+            # print(f"Need to add {len(albums_to_add_to_database)} new albums")
 
             new_album_ids = list(albums_to_add_to_database)
             del albums_to_add_to_database
@@ -259,21 +260,21 @@ async def create_playlist(
                     new_album_ids[i : i + batch_size]
                     for i in range(0, len(new_album_ids), batch_size)
                 ]
-                print(
-                    f"Will process {len(new_album_ids)} albums in {len(album_batches)} batches using batch API"
-                )
+                # print(
+                #     f"Will process {len(new_album_ids)} albums in {len(album_batches)} batches using batch API"
+                # )
 
                 album_data_map = {}
                 for batch_idx, album_batch in enumerate(album_batches):
-                    print(
-                        f"Processing album batch {batch_idx+1} of {len(album_batches)}"
-                    )
+                    # print(
+                    #     f"Processing album batch {batch_idx+1} of {len(album_batches)}"
+                    # )
 
                     # get several albums in a single API call
                     try:
                         # add a small delay between batch requests to avoid rate limiting
                         if batch_idx > 0:
-                            print(f"pausing before next album batch")
+                            # print(f"pausing before next album batch")
                             await asyncio.sleep(1.0)  # 1 second delay between batches
 
                         albums_data = sp.albums(album_batch)
@@ -378,7 +379,7 @@ async def create_playlist(
                                 }
                 # execute batch insert for albums
                 if album_data_map:
-                    print(f"Inserting {len(album_data_map)} albums in batch")
+                    # print(f"Inserting {len(album_data_map)} albums in batch")
                     album_values = {}
                     placeholders = []
 
@@ -406,7 +407,7 @@ async def create_playlist(
                     except Exception as e:
                         print(f"Error batch inserting albums: {str(e)}")
 
-            print(f"Need to add {len(artists_to_add_to_database)} new artists")
+            # print(f"Need to add {len(artists_to_add_to_database)} new artists")
             # store successfully inserted artist IDs
             inserted_artist_ids = set()
             new_artist_ids = list(artists_to_add_to_database)
@@ -419,23 +420,23 @@ async def create_playlist(
                     new_artist_ids[i : i + batch_size]
                     for i in range(0, len(new_artist_ids), batch_size)
                 ]
-                print(
-                    f"Will process {len(new_artist_ids)} artists in {len(artist_batches)} batches using batch API"
-                )
+                # print(
+                #     f"Will process {len(new_artist_ids)} artists in {len(artist_batches)} batches using batch API"
+                # )
 
                 try:
                     artist_data_map = {}
 
                     for batch_idx, artist_batch in enumerate(artist_batches):
-                        print(
-                            f"Processing artist batch {batch_idx+1} of {len(artist_batches)}"
-                        )
+                        # print(
+                        #     f"Processing artist batch {batch_idx+1} of {len(artist_batches)}"
+                        # )
 
                         # use spotify's batch API to get multiple artists in one request
                         try:
                             # add a small delay between batch requests to avoid rate limiting
                             if batch_idx > 0:
-                                print(f"pausing before next artist batch")
+                                # print(f"pausing before next artist batch")
                                 await asyncio.sleep(
                                     1.0
                                 )  # 1 second delay between batches
@@ -449,6 +450,7 @@ async def create_playlist(
                                         # simple genres processing
                                         genres = artist_data.get("genres", [])
                                         artist_id = artist_data["id"]
+                                        artist_genre_map[artist_id] = set(genres)
 
                                         # handle case where artist doesn't have images
                                         image_url = "https://via.placeholder.com/300"  # default image
@@ -462,7 +464,6 @@ async def create_playlist(
                                             "id": artist_id,
                                             "name": artist_data["name"],
                                             "image_url": image_url,
-                                            "genres": genres,
                                             "popularity": artist_data["popularity"],
                                         }
                         except Exception as e:
@@ -475,13 +476,12 @@ async def create_playlist(
                                         "id": artist_id,
                                         "name": "Unknown Artist",
                                         "image_url": "https://via.placeholder.com/300",
-                                        "genres": [],
                                         "popularity": 0,
                                     }
 
                     # execute batch insert for artists
                     if artist_data_map:
-                        print(f"Inserting {len(artist_data_map)} artists in batch")
+                        # print(f"Inserting {len(artist_data_map)} artists in batch")
                         artist_values = {}
                         placeholders = []
 
@@ -489,20 +489,19 @@ async def create_playlist(
                             artist_data_map.items()
                         ):
                             placeholders.append(
-                                f"(:artist_id_{i}, :artist_name_{i}, :artist_image_{i}, :artist_genres_{i}, :artist_popularity_{i})"
+                                f"(:artist_id_{i}, :artist_name_{i}, :artist_image_{i}, :artist_popularity_{i})"
                             )
                             artist_values[f"artist_id_{i}"] = artist_id
                             artist_values[f"artist_name_{i}"] = artist_data["name"]
                             artist_values[f"artist_image_{i}"] = artist_data[
                                 "image_url"
                             ]
-                            artist_values[f"artist_genres_{i}"] = artist_data["genres"]
                             artist_values[f"artist_popularity_{i}"] = artist_data[
                                 "popularity"
                             ]
 
                         artist_query = f"""
-                        INSERT INTO artists (id, name, image_url, genres, popularity)
+                        INSERT INTO artists (id, name, image_url, popularity)
                         VALUES {", ".join(placeholders)}
                         ON CONFLICT (id) DO NOTHING
                         """
@@ -540,7 +539,7 @@ async def create_playlist(
 
             # insert new songs in batch
             if new_songs:
-                print(f"Inserting {len(new_songs)} songs in batch")
+                # print(f"Inserting {len(new_songs)} songs in batch")
                 try:
                     # build placeholder sections for songs
                     placeholder_sections = []
@@ -644,8 +643,46 @@ async def create_playlist(
                 except Exception as e:
                     print(f"Error batch inserting album artists: {str(e)}")
 
+            if artist_genre_map:
+                query = "INSERT INTO artist_genres (artist_id, genre_id) VALUES (:artist_id, :genre_id)"
+                values = []
+                genre_ids = await database.fetch_all(
+                    """
+                    SELECT name, id 
+                    FROM genres 
+                    WHERE name = ANY(:names)
+                    """,
+                    values={
+                        "names": list(
+                            set(
+                                genre
+                                for genres in artist_genre_map.values()
+                                for genre in genres
+                            )
+                        )
+                    },
+                )
+                genre_id_map = {genre["name"]: genre["id"] for genre in genre_ids}
+                for artist_id, genres in artist_genre_map.items():
+                    for genre in genres:
+                        genre_id = genre_id_map.get(
+                            genre, "KEYERRORSJNXHSJDANDADKJASNDKASD"
+                        )
+                        if genre_id == "KEYERRORSJNXHSJDANDADKJASNDKASD":
+                            await database.execute(
+                                "INSERT INTO genres (name) VALUES (:name) ON CONFLICT (name) DO NOTHING",
+                                values={"name": genre},
+                            )
+                            genre_id = await database.fetch_val(
+                                "SELECT id FROM genres WHERE name = :name",
+                                values={"name": genre},
+                            )
+                        values.append({"artist_id": artist_id, "genre_id": genre_id})
+                del genre_ids
+                await database.execute_many(query=query, values=values)
+
             # now insert all playlist_songs relationships
-            print(f"Adding {len(all_playlist_song_ids)} songs to playlist")
+            # print(f"Adding {len(all_playlist_song_ids)} songs to playlist")
             try:
                 # get the next position
                 position = await database.fetch_val(
@@ -676,9 +713,9 @@ async def create_playlist(
                     ]
 
                     for batch_index, batch in enumerate(batches):
-                        print(
-                            f"Inserting batch {batch_index + 1} of {len(batches)} into playlist_songs"
-                        )
+                        # print(
+                        #     f"Inserting batch {batch_index + 1} of {len(batches)} into playlist_songs"
+                        # )
                         ps_values_list = {}
                         ps_placeholders = []
 
@@ -950,6 +987,7 @@ async def add_songs(
     existing_song_ids = {song["id"] for song in existing_songs}
     album_artists_to_add = {}
     song_artists_to_add = {}
+    artist_genre_map = {}
 
     # process each song
     songs_to_add_to_playlist = []
@@ -988,15 +1026,16 @@ async def add_songs(
                                     and len(artist_info["images"]) > 0
                                 ):
                                     image_url = artist_info["images"][0]["url"]
+                                genres = artist_info.get("genres", [])
+                                artist_genre_map[artist_id_val] = set(genres)
 
                                 # insert artist
                                 await database.execute(
-                                    "INSERT INTO artists (id, name, image_url, genres, popularity) VALUES (:id, :name, :image_url, :genres, :popularity)",
+                                    "INSERT INTO artists (id, name, image_url, popularity) VALUES (:id, :name, :image_url, :popularity)",
                                     values={
                                         "id": artist_id_val,
                                         "name": artist_info["name"],
                                         "image_url": image_url,
-                                        "genres": artist_info.get("genres", []),
                                         "popularity": artist_info["popularity"],
                                     },
                                 )
@@ -1054,14 +1093,15 @@ async def add_songs(
                                         and len(artist_info["images"]) > 0
                                     ):
                                         image_url = artist_info["images"][0]["url"]
+                                    genres = artist_info.get("genres", [])
+                                    artist_genre_map[artist_id] = set(genres)
 
                                     await database.execute(
-                                        "INSERT INTO artists (id, name, image_url, genres, popularity) VALUES (:id, :name, :image_url, :genres, :popularity)",
+                                        "INSERT INTO artists (id, name, image_url, popularity) VALUES (:id, :name, :image_url, :popularity)",
                                         values={
                                             "id": artist_id,
                                             "name": artist_info["name"],
                                             "image_url": image_url,
-                                            "genres": artist_info.get("genres", []),
                                             "popularity": artist_info["popularity"],
                                         },
                                     )
@@ -1101,14 +1141,16 @@ async def add_songs(
                                         ):
                                             image_url = artist_info["images"][0]["url"]
 
+                                        genres = artist_info.get("genres", [])
+                                        artist_genre_map[artist_id] = set(genres)
+
                                         # insert artist
                                         await database.execute(
-                                            "INSERT INTO artists (id, name, image_url, genres, popularity) VALUES (:id, :name, :image_url, :genres, :popularity)",
+                                            "INSERT INTO artists (id, name, image_url, popularity) VALUES (:id, :name, :image_url, :popularity)",
                                             values={
                                                 "id": artist_id,
                                                 "name": artist_info["name"],
                                                 "image_url": image_url,
-                                                "genres": artist_info.get("genres", []),
                                                 "popularity": artist_info["popularity"],
                                             },
                                         )
@@ -1284,6 +1326,42 @@ async def add_songs(
         except Exception as e:
             print(f"Error batch inserting album artists: {str(e)}")
 
+    if artist_genre_map:
+        query = "INSERT INTO artist_genres (artist_id, genre_id) VALUES (:artist_id, :genre_id)"
+        values = []
+        genre_ids = await database.fetch_all(
+            """
+            SELECT name, id 
+            FROM genres 
+            WHERE name = ANY(:names)
+            """,
+            values={
+                "names": list(
+                    set(
+                        genre
+                        for genres in artist_genre_map.values()
+                        for genre in genres
+                    )
+                )
+            },
+        )
+        genre_id_map = {genre["name"]: genre["id"] for genre in genre_ids}
+        for artist_id, genres in artist_genre_map.items():
+            for genre in genres:
+                genre_id = genre_id_map.get(genre, "KEYERRORSJNXHSJDANDADKJASNDKASD")
+                if genre_id == "KEYERRORSJNXHSJDANDADKJASNDKASD":
+                    await database.execute(
+                        "INSERT INTO genres (name) VALUES (:name) ON CONFLICT (name) DO NOTHING",
+                        values={"name": genre},
+                    )
+                    genre_id = await database.fetch_val(
+                        "SELECT id FROM genres WHERE name = :name",
+                        values={"name": genre},
+                    )
+                values.append({"artist_id": artist_id, "genre_id": genre_id})
+        del genre_ids
+        await database.execute_many(query=query, values=values)
+
     # now add songs to playlist in batch
     successful_adds = 0
     already_exists = 0
@@ -1304,7 +1382,7 @@ async def add_songs(
                 successful_adds += 1
             else:
                 already_exists += 1
-                print(f"Song {song_data['song_id']} already in playlist")
+                # print(f"Song {song_data['song_id']} already in playlist")
         except Exception as e:
             print(f"Error adding song to playlist: {e}")
 

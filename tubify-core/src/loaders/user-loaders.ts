@@ -68,6 +68,11 @@ export interface ProfileData {
     username: string
   }>
   isSpotifyConnected: boolean
+  likedSongs?: {
+    count: number
+    syncStatus: string
+    lastSynced: string | null
+  }
 }
 
 // cache keys
@@ -358,52 +363,63 @@ export async function userPlaylistDetailLoader({ params }: LoaderFunctionArgs) {
 
 export const profileLoader = async (): Promise<ProfileData> => {
   try {
-    // fetch profile, friends, friend requests, and spotify connection status in parallel
-    const [
-      profileResponse,
-      friendsResponse,
-      friendRequestsResponse,
-      spotifyResponse,
-    ] = await Promise.allSettled([
-      api.get("/api/profile"),
-      api.get("/api/profile/friends"),
-      api.get("/api/profile/friend-requests"),
-      api.get("/api/spotify/status"),
-    ])
+    // Fetch profile data
+    const { data: profile } = await api.get("/api/profile")
 
-    // handle profile response
-    const profile =
-      profileResponse.status === "fulfilled" ? profileResponse.value.data : null
+    // Fetch friends
+    const { data: friends } = await api.get("/api/profile/friends")
 
-    // handle friends response
-    const friends =
-      friendsResponse.status === "fulfilled" ? friendsResponse.value.data : []
+    // Fetch friend requests
+    const { data: friendRequests } = await api.get(
+      "/api/profile/friend-requests",
+    )
 
-    // handle friend requests response
-    const friendRequests =
-      friendRequestsResponse.status === "fulfilled"
-        ? friendRequestsResponse.value.data
-        : []
+    // Check Spotify connection status
+    const { data: spotifyStatus } = await api.get("/api/spotify/status")
+    const isSpotifyConnected = spotifyStatus.is_connected
 
-    // handle spotify connection status
-    const isSpotifyConnected =
-      spotifyResponse.status === "fulfilled"
-        ? spotifyResponse.value.data.is_connected
-        : false
+    // Fetch liked songs data if Spotify is connected
+    let likedSongs
+    if (isSpotifyConnected) {
+      try {
+        const { data: likedSongsCount } = await api.get(
+          "/api/liked-songs/count",
+        )
+        const { data: syncStatus } = await api.get(
+          "/api/liked-songs/sync/status",
+        )
+
+        likedSongs = {
+          count: likedSongsCount.count || 0,
+          syncStatus: syncStatus.is_syncing
+            ? "syncing"
+            : syncStatus.last_synced_at
+              ? "synced"
+              : "not_synced",
+          lastSynced: syncStatus.last_synced_at,
+        }
+      } catch (error) {
+        // If there's an error fetching liked songs data, set default values
+        console.error("Error fetching liked songs data:", error)
+        likedSongs = {
+          count: 0,
+          syncStatus: "not_synced",
+          lastSynced: null,
+        }
+      }
+    }
 
     return {
       profile,
       friends,
       friendRequests,
       isSpotifyConnected,
+      likedSongs,
     }
   } catch (error) {
-    // log error in development
-    if (process.env.NODE_ENV === "development") {
-      console.error("profile loader error:", error)
-    }
+    console.error("Failed to load profile data:", error)
 
-    // if there's an error, return default values
+    // Return default values on error
     return {
       profile: null,
       friends: [],

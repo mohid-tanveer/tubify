@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, BackgroundTasks
 from fastapi.responses import RedirectResponse
 from datetime import datetime, timedelta, timezone
 import spotipy
@@ -113,6 +113,7 @@ async def spotify_callback(
     code: str,
     state: str,
     error: Optional[str] = None,
+    background_tasks: BackgroundTasks = None,
 ):
     """handle spotify oauth callback"""
     if error:
@@ -139,14 +140,24 @@ async def spotify_callback(
         await database.execute(
             """
             INSERT INTO spotify_credentials (
-                user_id, spotify_id, access_token, refresh_token, token_expires_at
-            ) VALUES (:user_id, :spotify_id, :access_token, :refresh_token, :expires_at)
+                user_id, spotify_id, access_token, refresh_token, token_expires_at,
+                liked_songs_sync_status, liked_songs_count
+            ) VALUES (
+                :user_id, :spotify_id, :access_token, :refresh_token, :expires_at,
+                'not_started', 0
+            )
             ON CONFLICT (user_id) DO UPDATE SET
                 spotify_id = EXCLUDED.spotify_id,
                 access_token = EXCLUDED.access_token,
                 refresh_token = EXCLUDED.refresh_token,
                 token_expires_at = EXCLUDED.token_expires_at,
-                last_used_at = CURRENT_TIMESTAMP
+                last_used_at = CURRENT_TIMESTAMP,
+                liked_songs_sync_status = 
+                    CASE 
+                        WHEN spotify_credentials.liked_songs_sync_status = 'completed' 
+                        THEN 'needs_update' 
+                        ELSE COALESCE(spotify_credentials.liked_songs_sync_status, 'not_started')
+                    END
         """,
             {
                 "user_id": user_id,
@@ -156,6 +167,13 @@ async def spotify_callback(
                 "expires_at": expires_at,
             },
         )
+
+        # start background task to sync liked songs
+        if background_tasks:
+            # Import the function here to avoid circular imports
+            from liked_songs import sync_liked_songs_background
+
+            background_tasks.add_task(sync_liked_songs_background, user_id, sp)
 
         # redirect to frontend with success
         return RedirectResponse(url=f"{FRONTEND_URL}?spotify_connected=true")

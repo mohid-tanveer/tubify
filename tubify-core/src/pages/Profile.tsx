@@ -5,12 +5,13 @@ import api, { AxiosError } from "@/lib/axios"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { Pencil, X, Check } from "lucide-react"
+import { Pencil, X, Check, Music } from "lucide-react"
 import { toast } from "sonner"
 import { z } from "zod"
 import { Icons } from "@/components/icons"
 import { useNavigate, useLoaderData } from "react-router-dom"
 import { ProfileData } from "@/loaders/user-loaders"
+import { LikedSongsSync } from "@/components/ui/liked-songs-sync"
 
 const profileSchema = z.object({
   username: z.string()
@@ -41,7 +42,7 @@ interface FriendRequest {
 
 export default function Profile() {
   const { isAuthenticated, logout } = useContext(AuthContext)
-  const { profile, friends, friendRequests, isSpotifyConnected } = useLoaderData() as ProfileData
+  const { profile, friends, friendRequests, isSpotifyConnected, likedSongs } = useLoaderData() as ProfileData
   const [isEditing, setIsEditing] = useState(false)
   const [editForm, setEditForm] = useState<{
     username: string
@@ -249,6 +250,31 @@ export default function Profile() {
     await logout()
   }
 
+  // Add auto-sync functionality
+  useEffect(() => {
+    const checkAutoSync = async () => {
+      // Only check for auto-sync if user is authenticated and has Spotify connected
+      if (isAuthenticated && isSpotifyConnected) {
+        try {
+          // Call the auto-sync endpoint silently in the background
+          await api.get("/api/liked-songs/auto-sync")
+        } catch (error) {
+          // Silently fail if auto-sync check has an error
+          console.error("auto-sync check failed:", error)
+        }
+      }
+    }
+    
+    checkAutoSync()
+  }, [isAuthenticated, isSpotifyConnected])
+
+  // redirect if not authenticated
+  useEffect(() => {
+    if (!isAuthenticated) {
+      navigate("/auth")
+    }
+  }, [isAuthenticated, navigate])
+
   if (!isAuthenticated) {
     return (
       <div className="overflow-hidden flex flex-col min-h-screen">
@@ -429,14 +455,39 @@ export default function Profile() {
               
               <div className="flex flex-col gap-4 w-full">
                 {isSpotifyConnected ? (
-                  <Button
-                    onClick={() => navigate("/playlists")}
-                    variant="spotify"
-                    className="flex items-center justify-center gap-2 w-full"
-                  >
-                    <Icons.spotify className="mr-2 h-4 w-4" />
-                    My Playlists
-                  </Button>
+                  <>
+                    <Button
+                      onClick={() => navigate("/playlists")}
+                      variant="spotify"
+                      className="flex items-center justify-center gap-2 w-full"
+                    >
+                      <Icons.spotify className="mr-2 h-4 w-4" />
+                      My Playlists
+                    </Button>
+                    
+                    <LikedSongsSync 
+                      initialStatus={
+                        profile && profile.user_name && likedSongs 
+                          ? {
+                              syncStatus: likedSongs.syncStatus,
+                              lastSynced: likedSongs.lastSynced,
+                              count: likedSongs.count
+                            }
+                          : undefined
+                      }
+                    />
+
+                    {likedSongs && likedSongs.count > 0 && (
+                      <Button
+                        onClick={() => navigate("/liked-songs")}
+                        variant="outline"
+                        className="flex items-center justify-center gap-2 w-full"
+                      >
+                        <Music className="mr-2 h-4 w-4" />
+                        View Liked Songs
+                      </Button>
+                    )}
+                  </>
                 ) : (
                   <Button
                     className="flex items-center justify-center gap-2 bg-gray-600 hover:bg-gray-700 cursor-not-allowed w-full"
