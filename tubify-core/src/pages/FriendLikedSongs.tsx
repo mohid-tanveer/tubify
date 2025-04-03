@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react"
-import { useParams, useNavigate } from "react-router-dom"
+import { useEffect, useState, useRef, useCallback } from "react"
+import { useParams, useNavigate, useLoaderData, useRevalidator } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { 
@@ -33,104 +33,143 @@ interface LikedSongsStats {
   compatibility_percentage: number
 }
 
+interface LikedSongsData {
+  songs: LikedSong[]
+  totalCount: number
+  stats?: LikedSongsStats
+  error?: string
+}
+
 export default function FriendLikedSongs() {
   const { username } = useParams<{ username: string }>()
   const navigate = useNavigate()
+  const initialData = useLoaderData() as LikedSongsData
+  const revalidator = useRevalidator()
   
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [songs, setSongs] = useState<LikedSong[]>([])
-  const [stats, setStats] = useState<LikedSongsStats | null>(null)
+  // state for songs and stats
+  const [songs, setSongs] = useState<LikedSong[]>(initialData.songs || [])
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(initialData.error || null)
+  const stats = initialData.stats
+  
+  // state for pagination and filtering
   const [page, setPage] = useState(1)
-  const [totalSongs, setTotalSongs] = useState(0)
-  const [filterType, setFilterType] = useState("all")  // "all", "shared", "unique"
+  const [hasMore, setHasMore] = useState(true)
+  const [filterType, setFilterType] = useState<string>("all")
   const [searchQuery, setSearchQuery] = useState("")
-  const [isSearching, setIsSearching] = useState(false)
+  const [debouncedQuery, setDebouncedQuery] = useState("")
+  const loadingRef = useRef<HTMLDivElement>(null)
   const pageSize = 20
   
-  // fetch stats on load
-  useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        const response = await api.get(`/api/liked-songs/friends/${username}/stats`)
-        setStats(response.data)
-        setTotalSongs(response.data.friend_likes_count || 0)
-      } catch (error) {
-        console.error("Failed to fetch stats:", error)
-      }
-    }
+  // fetch songs with filter and search
+  const fetchSongs = useCallback(async (
+    pageNum: number, 
+    filter: string, 
+    search: string, 
+    isNewQuery = false
+  ) => {
+    if (!username) return
     
-    fetchStats()
-  }, [username])
-  
-  // fetch songs when page, filter or search changes
-  useEffect(() => {
-    const fetchSongs = async () => {
-      try {
-        setIsLoading(true)
-        setError(null)
-        
-        const offset = (page - 1) * pageSize
-        let url = `/api/liked-songs/friends/${username}?limit=${pageSize}&offset=${offset}&filter_type=${filterType}`
-        
-        if (searchQuery) {
-          url += `&search=${encodeURIComponent(searchQuery)}`
-        }
-        
-        const response = await api.get(url)
-        setSongs(response.data)
-        
-        // update total count based on filter
-        if (stats) {
-          if (filterType === "all") {
-            setTotalSongs(stats.friend_likes_count)
-          } else if (filterType === "shared") {
-            setTotalSongs(stats.shared_likes_count)
-          } else if (filterType === "unique") {
-            setTotalSongs(stats.friend_unique_count)
-          }
-        }
-      } catch (error) {
-        console.error("Failed to fetch liked songs:", error)
-        setError("Failed to load liked songs. Please try again.")
-      } finally {
-        setIsLoading(false)
-        setIsSearching(false)
+    try {
+      setIsLoading(true)
+      setError(null)
+      
+      const offset = (pageNum - 1) * pageSize
+      let url = `/api/liked-songs/friends/${username}?limit=${pageSize}&offset=${offset}&filter_type=${filter}`
+      
+      if (search) {
+        url += `&search=${encodeURIComponent(search)}`
       }
+      
+      const response = await api.get(url)
+      const newSongs = response.data
+      
+      if (isNewQuery) {
+        setSongs(newSongs)
+      } else {
+        setSongs(prev => [...prev, ...newSongs])
+      }
+      
+      // check if there are more songs to load
+      setHasMore(newSongs.length === pageSize)
+      setPage(pageNum)
+    } catch (error) {
+      console.error("failed to fetch songs:", error)
+      setError("failed to load songs")
+    } finally {
+      setIsLoading(false)
     }
+  }, [username, pageSize, setIsLoading, setError, setSongs, setHasMore, setPage])
+  
+  // handle search input debounce
+  useEffect(() => {
+    const timerId = setTimeout(() => {
+      if (searchQuery !== debouncedQuery) {
+        setDebouncedQuery(searchQuery)
+        // reset songs and pagination when search changes
+        setSongs([])
+        setPage(1)
+        setHasMore(true)
+        fetchSongs(1, filterType, searchQuery, true)
+      }
+    }, 500)
     
-    fetchSongs()
-  }, [username, page, filterType, searchQuery, stats])
+    return () => clearTimeout(timerId)
+  }, [searchQuery, debouncedQuery, filterType, fetchSongs, setSongs, setPage, setHasMore])
   
-  const formatDuration = (ms: number) => {
-    const minutes = Math.floor(ms / 60000)
-    const seconds = Math.floor((ms % 60000) / 1000)
-    return `${minutes}:${seconds.toString().padStart(2, '0')}`
-  }
-  
-  const maxPage = Math.ceil(totalSongs / pageSize) || 1
-  
-  const handlePrevPage = () => {
-    if (page > 1) {
-      setPage(page - 1)
-    }
-  }
-  
-  const handleNextPage = () => {
-    if (page < maxPage) {
-      setPage(page + 1)
-    }
-  }
-  
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsSearching(true)
-    setPage(1) // reset to first page on new search
-  }
-  
+  // handle filter change
   const handleFilterChange = (value: string) => {
-    setFilterType(value)
-    setPage(1) // reset to first page on filter change
+    if (value !== filterType) {
+      setFilterType(value)
+      // reset songs and pagination when filter changes
+      setSongs([])
+      setPage(1) 
+      setHasMore(true)
+      fetchSongs(1, value, debouncedQuery, true)
+    }
+  }
+  
+  // function to load more songs
+  const loadMore = useCallback(() => {
+    if (isLoading || !hasMore) return
+    
+    const nextPage = page + 1
+    fetchSongs(nextPage, filterType, debouncedQuery)
+  }, [isLoading, hasMore, page, filterType, debouncedQuery, fetchSongs])
+  
+  // load more when scrolling to bottom
+  useEffect(() => {
+    if (!hasMore || isLoading) return
+    
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          loadMore()
+        }
+      },
+      { threshold: 0.1 }
+    )
+    
+    const currentRef = loadingRef.current
+    if (currentRef) {
+      observer.observe(currentRef)
+    }
+    
+    return () => {
+      if (currentRef) {
+        observer.unobserve(currentRef)
+      }
+    }
+  }, [hasMore, isLoading, loadMore])
+  
+  // handle search input change
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchQuery(e.target.value)
+  }
+  
+  // format album title for display
+  const formatAlbumTitle = (title: string) => {
+    return title
   }
   
   return (
@@ -163,26 +202,21 @@ export default function FriendLikedSongs() {
         </div>
         
         {/* search and filter controls */}
-        <div className="mb-6 flex flex-col md:flex-row gap-4">
-          <form onSubmit={handleSearch} className="flex-1 flex gap-2">
+        <div className="flex flex-col gap-4 sm:flex-row">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <Input
+              type="text"
+              placeholder="Search songs..."
+              className="pl-9"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search by song, artist or album..."
-              className="flex-1"
+              onChange={handleSearchChange}
             />
-            <Button type="submit" disabled={isSearching}>
-              {isSearching ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Search className="h-4 w-4" />
-              )}
-            </Button>
-          </form>
+          </div>
           
-          <div className="w-full md:w-48">
-            <Select value={filterType} onValueChange={handleFilterChange}>
-              <SelectTrigger>
+          <div className="w-full sm:w-48">
+            <Select value={filterType} onValueChange={(value) => handleFilterChange(value)}>
+              <SelectTrigger className="w-full">
                 <SelectValue placeholder="Filter songs" />
               </SelectTrigger>
               <SelectContent>
@@ -195,7 +229,7 @@ export default function FriendLikedSongs() {
         </div>
         
         <div className="mt-8">
-          {isLoading ? (
+          {revalidator.state === "loading" ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
             </div>
@@ -218,20 +252,17 @@ export default function FriendLikedSongs() {
                 <div className="col-span-1">#</div>
                 <div className="col-span-5">title</div>
                 <div className="col-span-3">artist</div>
-                <div className="col-span-2">album</div>
-                <div className="col-span-1 text-right">duration</div>
+                <div className="col-span-3">album</div>
               </div>
               
               <div className="space-y-2">
                 {songs.map((song, index) => (
                   <div 
                     key={song.id}
-                    className={`grid grid-cols-12 gap-4 rounded-md py-2 px-2 text-white hover:bg-slate-800/50 ${
-                      song.is_shared ? "border-l-2 border-pink-500" : ""
-                    }`}
+                    className="grid grid-cols-12 gap-4 rounded-md py-2 px-2 text-white hover:bg-slate-800/50"
                   >
                     <div className="col-span-1 flex items-center text-slate-400">
-                      {(page - 1) * pageSize + index + 1}
+                      {index + 1}
                     </div>
                     <div className="col-span-5 flex items-center">
                       <div 
@@ -271,44 +302,26 @@ export default function FriendLikedSongs() {
                     <div className="col-span-3 flex items-center">
                       <span className="truncate">{song.artist}</span>
                     </div>
-                    <div className="col-span-2 flex items-center">
-                      <span className="truncate">{song.album}</span>
-                    </div>
-                    <div className="col-span-1 flex items-center justify-end text-slate-400">
-                      {formatDuration(song.duration_ms)}
+                    <div className="col-span-3 flex items-center">
+                      <span className="truncate">{formatAlbumTitle(song.album)}</span>
                     </div>
                   </div>
                 ))}
               </div>
               
-              {/* pagination */}
-              {maxPage > 1 && (
-                <div className="mt-8 flex items-center justify-center gap-4">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handlePrevPage}
-                    disabled={page === 1}
-                    className="bg-slate-800 hover:bg-slate-700"
-                  >
-                    <ArrowLeft className="h-4 w-4" />
-                  </Button>
-                  
-                  <span className="text-sm text-slate-400">
-                    page {page} of {maxPage}
-                  </span>
-                  
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleNextPage}
-                    disabled={page === maxPage}
-                    className="bg-slate-800 hover:bg-slate-700"
-                  >
-                    <ArrowLeft className="h-4 w-4 rotate-180" />
-                  </Button>
-                </div>
-              )}
+              {/* loading indicator for infinite scroll */}
+              <div 
+                ref={loadingRef} 
+                className="mt-8 flex items-center justify-center py-4"
+              >
+                {isLoading ? (
+                  <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
+                ) : hasMore ? (
+                  <div className="h-10" />
+                ) : (
+                  <p className="text-sm text-slate-500">no more songs to load</p>
+                )}
+              </div>
             </>
           )}
         </div>

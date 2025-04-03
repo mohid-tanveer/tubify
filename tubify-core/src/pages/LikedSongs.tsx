@@ -1,9 +1,9 @@
-import { useEffect, useState, useContext } from "react"
-import { AuthContext } from "@/contexts/auth"
-import { useNavigate } from "react-router-dom"
+import { useState, useRef, useEffect, useCallback } from "react"
+import { useNavigate, useLoaderData, useRevalidator } from "react-router-dom"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { LikedSongsSync } from "@/components/ui/liked-songs-sync"
-import { Loader2, ArrowLeft, Music, ChevronLeft, ChevronRight } from "lucide-react"
+import { Loader2, ArrowLeft, Music, Search } from "lucide-react"
 import api from "@/lib/axios"
 import { formatDistanceToNow } from "date-fns"
 
@@ -17,71 +17,127 @@ interface LikedSong {
   liked_at: string
 }
 
+interface LikedSongsData {
+  songs: LikedSong[]
+  totalCount: number
+  error?: string
+}
+
 export default function LikedSongs() {
-  const { isAuthenticated } = useContext(AuthContext)
   const navigate = useNavigate()
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [songs, setSongs] = useState<LikedSong[]>([])
+  const initialData = useLoaderData() as LikedSongsData
+  const [songs, setSongs] = useState<LikedSong[]>(initialData.songs || [])
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(initialData.error || null)
   const [page, setPage] = useState(1)
-  const [totalSongs, setTotalSongs] = useState(0)
+  const [hasMore, setHasMore] = useState(true)
   const pageSize = 20
+  const loadingRef = useRef<HTMLDivElement>(null)
+  const revalidator = useRevalidator()
+  const [searchQuery, setSearchQuery] = useState("")
+  const [debouncedQuery, setDebouncedQuery] = useState("")
   
-  // get liked songs
-  useEffect(() => {
-    const fetchLikedSongs = async () => {
-      try {
-        setIsLoading(true)
-        
-        // get liked songs count
-        const countResponse = await api.get("/api/liked-songs/count")
-        setTotalSongs(countResponse.data.count || 0)
-        
-        if (countResponse.data.count > 0) {
-          // get liked songs for current page
-          const offset = (page - 1) * pageSize
-          const songsResponse = await api.get(`/api/liked-songs?limit=${pageSize}&offset=${offset}`)
-          setSongs(songsResponse.data)
-        }
-        
-        setIsLoading(false)
-      } catch (error) {
-        console.error("failed to fetch liked songs:", error)
-        setError("failed to load liked songs. please try again.")
-        setIsLoading(false)
+  // fetch songs with search query
+  const fetchSongs = useCallback(async (
+    pageNum: number,
+    search: string,
+    isNewQuery = false
+  ) => {
+    try {
+      setIsLoading(true)
+      setError(null)
+      
+      const offset = (pageNum - 1) * pageSize
+      let url = `/api/liked-songs?limit=${pageSize}&offset=${offset}`
+      
+      if (search) {
+        url += `&search=${encodeURIComponent(search)}`
       }
+      
+      const response = await api.get(url)
+      const newSongs = response.data
+      
+      if (isNewQuery) {
+        setSongs(newSongs)
+      } else {
+        setSongs(prev => [...prev, ...newSongs])
+      }
+      
+      // check if there are more songs to load
+      setHasMore(newSongs.length === pageSize)
+      
+      setPage(pageNum)
+    } catch (error) {
+      console.error("failed to fetch songs:", error)
+      setError("failed to load songs")
+    } finally {
+      setIsLoading(false)
+    }
+  }, [pageSize])
+  
+  // handle search input debounce
+  useEffect(() => {
+    const timerId = setTimeout(() => {
+      if (searchQuery !== debouncedQuery) {
+        setDebouncedQuery(searchQuery)
+        // reset songs and pagination when search changes
+        setSongs([])
+        setPage(1)
+        setHasMore(true)
+        fetchSongs(1, searchQuery, true)
+      }
+    }, 500)
+    
+    return () => clearTimeout(timerId)
+  }, [searchQuery, debouncedQuery, fetchSongs])
+  
+  // load more songs
+  const loadMore = useCallback(async () => {
+    if (isLoading || !hasMore) return
+    
+    const nextPage = page + 1
+    fetchSongs(nextPage, debouncedQuery)
+  }, [isLoading, hasMore, page, debouncedQuery, fetchSongs])
+  
+  // load more songs when scrolling
+  useEffect(() => {
+    if (!hasMore) return
+    
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && !isLoading) {
+          loadMore()
+        }
+      },
+      { threshold: 0.1 }
+    )
+    
+    const currentRef = loadingRef.current
+    if (currentRef) {
+      observer.observe(currentRef)
     }
     
-    if (isAuthenticated) {
-      fetchLikedSongs()
+    return () => {
+      if (currentRef) {
+        observer.unobserve(currentRef)
+      }
     }
-  }, [isAuthenticated, page, pageSize])
-  
-  // redirect if not authenticated
-  useEffect(() => {
-    if (!isAuthenticated) {
-      navigate("/auth")
-    }
-  }, [isAuthenticated, navigate])
+  }, [hasMore, isLoading, loadMore])
   
   const formatDuration = (ms: number) => {
     const minutes = Math.floor(ms / 60000)
     const seconds = Math.floor((ms % 60000) / 1000)
     return `${minutes}:${seconds.toString().padStart(2, '0')}`
   }
-  
-  const maxPage = Math.ceil(totalSongs / pageSize) || 1
-  
-  const handlePrevPage = () => {
-    if (page > 1) {
-      setPage(page - 1)
-    }
+
+  // reload liked songs data
+  const refreshData = () => {
+    revalidator.revalidate()
   }
   
-  const handleNextPage = () => {
-    if (page < maxPage) {
-      setPage(page + 1)
-    }
+  // handle search input change
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchQuery(e.target.value)
   }
   
   return (
@@ -103,10 +159,22 @@ export default function LikedSongs() {
           <p className="mt-2 text-slate-400">view and browse your spotify liked songs</p>
         </div>
         
-        <LikedSongsSync />
+        <LikedSongsSync onSyncComplete={refreshData} />
+        
+        {/* search input */}
+        <div className="relative flex-1 mt-6">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <Input
+            type="text"
+            placeholder="Search songs..."
+            className="pl-9"
+            value={searchQuery}
+            onChange={handleSearchChange}
+          />
+        </div>
         
         <div className="mt-8">
-          {isLoading ? (
+          {revalidator.state === "loading" ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
             </div>
@@ -117,9 +185,9 @@ export default function LikedSongs() {
           ) : songs.length === 0 ? (
             <div className="mt-8 rounded-lg border border-slate-800 bg-slate-900/20 p-8 text-center">
               <Music className="mx-auto h-12 w-12 text-slate-600" />
-              <h3 className="mt-4 text-xl font-medium text-white">no liked songs yet</h3>
+              <h3 className="mt-4 text-xl font-medium text-white">no liked songs found</h3>
               <p className="mt-2 text-slate-400">
-                like songs on spotify to see them here
+                {searchQuery ? "try a different search term" : "like songs on spotify to see them here"}
               </p>
             </div>
           ) : (
@@ -139,7 +207,7 @@ export default function LikedSongs() {
                     className="grid grid-cols-12 gap-4 rounded-md py-2 px-2 text-white hover:bg-slate-800/50"
                   >
                     <div className="col-span-1 flex items-center text-slate-400">
-                      {(page - 1) * pageSize + index + 1}
+                      {index + 1}
                     </div>
                     <div className="col-span-5 flex items-center">
                       <div 
@@ -178,34 +246,19 @@ export default function LikedSongs() {
                 ))}
               </div>
               
-              {/* pagination */}
-              {maxPage > 1 && (
-                <div className="mt-8 flex items-center justify-center gap-4">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handlePrevPage}
-                    disabled={page === 1}
-                    className="bg-slate-800 hover:bg-slate-700"
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                  </Button>
-                  
-                  <span className="text-sm text-slate-400">
-                    page {page} of {maxPage}
-                  </span>
-                  
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleNextPage}
-                    disabled={page === maxPage}
-                    className="bg-slate-800 hover:bg-slate-700"
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
-                </div>
-              )}
+              {/* loading indicator for infinite scroll */}
+              <div 
+                ref={loadingRef} 
+                className="mt-8 flex items-center justify-center py-4"
+              >
+                {isLoading ? (
+                  <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
+                ) : hasMore ? (
+                  <div className="h-10" />
+                ) : (
+                  <p className="text-sm text-slate-500">no more songs to load</p>
+                )}
+              </div>
             </>
           )}
         </div>

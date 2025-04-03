@@ -2,8 +2,6 @@ import { useLoaderData, useNavigate } from "react-router-dom"
 import { TubifyTitle } from "@/components/ui/tubify-title"
 import { Button } from "@/components/ui/button"
 import { Music, Heart } from "lucide-react"
-import api from "@/lib/axios"
-import { useState, useEffect } from "react"
 
 interface UserProfileData {
   username: string
@@ -21,24 +19,11 @@ interface LikedSongsStats {
 }
 
 export default function UserProfile() {
-  const { profile } = useLoaderData() as { profile: UserProfileData }
+  const { profile, likedSongsStats } = useLoaderData() as { 
+    profile: UserProfileData, 
+    likedSongsStats: LikedSongsStats | null 
+  }
   const navigate = useNavigate()
-  const [likedSongsStats, setLikedSongsStats] = useState<LikedSongsStats | null>(null)
-
-  // fetch liked songs stats when viewing a friend's profile
-  useEffect(() => {
-    const fetchLikedSongsStats = async () => {
-      try {
-        const response = await api.get(`/api/liked-songs/friends/${profile.username}/stats`)
-        setLikedSongsStats(response.data)
-      } catch (error) {
-        console.error("Failed to fetch liked songs stats:", error)
-        // if not found, just don't show the liked songs option
-      }
-    }
-
-    fetchLikedSongsStats()
-  }, [profile.username])
 
   return (
     <div className="overflow-hidden flex flex-col min-h-screen">

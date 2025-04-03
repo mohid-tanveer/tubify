@@ -5,7 +5,16 @@ import { Spinner } from './components/ui/spinner'
 import { AuthContext } from './contexts/auth'
 import { Toaster } from "@/components/ui/sonner"
 import api from './lib/axios'
-import { playlistsLoader, playlistDetailLoader, userProfileLoader, userPlaylistsLoader, userPlaylistDetailLoader, profileLoader } from './loaders'
+import { 
+  playlistsLoader, 
+  playlistDetailLoader, 
+  userProfileLoader, 
+  userPlaylistsLoader, 
+  userPlaylistDetailLoader, 
+  profileLoader,
+  likedSongsLoader,
+  friendLikedSongsLoader
+} from './loaders'
 import './App.css'
 import FriendLikedSongs from './pages/FriendLikedSongs'
 
@@ -144,7 +153,8 @@ const router = createBrowserRouter([
           const result = await fullAuthLoader(args)
           if (result) return result // if it returns a redirect, pass it through
           
-          return null
+          // if auth checks pass, load liked songs
+          return likedSongsLoader(args)
         },
       },
       {
@@ -155,7 +165,8 @@ const router = createBrowserRouter([
           const result = await fullAuthLoader(args)
           if (result) return result // if it returns a redirect, pass it through
           
-          return null
+          // if auth checks pass, load friend's liked songs
+          return friendLikedSongsLoader(args)
         },
       },
     ],

@@ -22,9 +22,10 @@ interface LikedSongsSyncProps {
     lastSynced: string | null
     count: number
   }
+  onSyncComplete?: () => void
 }
 
-export function LikedSongsSync({ initialStatus }: LikedSongsSyncProps) {
+export function LikedSongsSync({ initialStatus, onSyncComplete }: LikedSongsSyncProps) {
   const [status, setStatus] = useState<SyncStatus | null>(
     initialStatus 
       ? {
@@ -89,6 +90,12 @@ export function LikedSongsSync({ initialStatus }: LikedSongsSyncProps) {
         } else {
           // stop polling when sync is complete
           setIsSyncing(false)
+          
+          // if we were previously syncing but now we're not, call the callback
+          if (status?.is_syncing && !newStatus.is_syncing && onSyncComplete) {
+            onSyncComplete()
+          }
+          
           return null  // no further polling needed
         }
       } catch (error) {
@@ -130,7 +137,7 @@ export function LikedSongsSync({ initialStatus }: LikedSongsSyncProps) {
         clearTimeout(intervalId)
       }
     }
-  }, [status])
+  }, [status, onSyncComplete])
 
   const handleSync = async () => {
     try {

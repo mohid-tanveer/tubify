@@ -1479,7 +1479,10 @@ async def get_sync_status(user: User = Depends(get_current_user)):
 # endpoint to get user's liked songs
 @router.get("", response_model=List[LikedSong])
 async def get_liked_songs(
-    limit: int = 50, offset: int = 0, user: User = Depends(get_current_user)
+    limit: int = 50,
+    offset: int = 0,
+    search: Optional[str] = None,
+    user: User = Depends(get_current_user),
 ):
     # check if user has synced liked songs
     creds = await database.fetch_one(
@@ -1497,9 +1500,8 @@ async def get_liked_songs(
             detail="Liked songs have not been synced yet. Please sync your liked songs first.",
         )
 
-    # get liked songs
-    songs = await database.fetch_all(
-        """
+    # base query for liked songs
+    base_query = """
         SELECT 
             s.id,
             s.name,
@@ -1515,12 +1517,44 @@ async def get_liked_songs(
         JOIN song_artists sa ON s.id = sa.song_id
         JOIN artists a ON sa.artist_id = a.id
         WHERE uls.user_id = :user_id
+    """
+
+    # add search filter if provided
+    if search:
+        base_query += """
+            AND (
+                LOWER(s.name) LIKE :search_term 
+                OR LOWER(al.name) LIKE :search_term
+                OR EXISTS (
+                    SELECT 1 FROM song_artists sa2
+                    JOIN artists a2 ON sa2.artist_id = a2.id
+                    WHERE sa2.song_id = s.id AND LOWER(a2.name) LIKE :search_term
+                )
+            )
+        """
+
+    # complete the query with grouping, ordering, and pagination
+    query = (
+        base_query
+        + """
         GROUP BY s.id, s.name, uls.liked_at, s.duration_ms, s.spotify_uri, al.image_url, al.name
         ORDER BY uls.liked_at DESC
         LIMIT :limit OFFSET :offset
-        """,
-        {"user_id": user.id, "limit": limit, "offset": offset},
+        """
     )
+
+    # prepare parameters
+    params = {
+        "user_id": user.id,
+        "limit": limit,
+        "offset": offset,
+    }
+
+    if search:
+        params["search_term"] = f"%{search.lower()}%"
+
+    # execute query
+    songs = await database.fetch_all(query, params)
 
     return [
         {
