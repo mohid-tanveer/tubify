@@ -153,6 +153,78 @@ export function clearAllPlaylistDetailCaches() {
   }
 }
 
+// loader function for fetching YouTube playback queue for a playlist
+export async function playlistYouTubeQueueLoader({
+  params,
+  request,
+}: LoaderFunctionArgs) {
+  // validate playlist ID
+  const playlistId = params.id
+  if (!playlistId) {
+    return {
+      error: "No playlist ID provided",
+      queue_items: [],
+    }
+  }
+
+  // get queue type from URL
+  const url = new URL(request.url)
+  const queueType = url.searchParams.get("queue_type") || "sequential"
+
+  // create cache key
+  const cacheKey = `tubify_youtube_queue_${playlistId}_${queueType}`
+
+  // try to get from cache first
+  const cachedData = localStorage.getItem(cacheKey)
+  if (cachedData) {
+    try {
+      const parsed = JSON.parse(cachedData)
+      const cacheTime = parsed.timestamp
+
+      // if cache is less than 5 minutes old, use it
+      if (cacheTime && Date.now() - cacheTime < 5 * 60 * 1000) {
+        return {
+          queue_items: parsed.queue_items || [],
+          queue_type: queueType,
+        }
+      }
+    } catch (e) {
+      // invalid cache, continue to fetch
+      console.error("Error parsing cache:", e)
+    }
+  }
+
+  // fetch from API
+  try {
+    const response = await api.get(
+      `/api/youtube/playlist/${playlistId}/queue?queue_type=${queueType}`,
+    )
+
+    const data = response.data
+
+    // cache the result
+    localStorage.setItem(
+      cacheKey,
+      JSON.stringify({
+        queue_items: data.queue_items,
+        timestamp: Date.now(),
+      }),
+    )
+
+    return {
+      queue_items: data.queue_items || [],
+      queue_type: queueType,
+    }
+  } catch (error) {
+    console.error("Failed to load YouTube queue:", error)
+    return {
+      error: "Failed to load videos for this playlist. Please try again later.",
+      queue_items: [],
+      queue_type: queueType,
+    }
+  }
+}
+
 // loader function for fetching playlists data
 export async function playlistsLoader() {
   try {

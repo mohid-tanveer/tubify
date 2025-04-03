@@ -1,6 +1,7 @@
 import { RouterProvider, createBrowserRouter, Navigate, useLocation, redirect, LoaderFunction, Outlet } from 'react-router-dom'
 import { useContext, useEffect, useState } from 'react'
 import { Homepage, AuthPage, EmailVerification, ResetPassword, RequestReset, WatchPage, Profile, Search, Playlists, PlaylistDetail, UserProfile, UserPlaylists, UserPlaylistDetail, LikedSongs } from './pages'
+import PlaylistYouTubeView from './pages/PlaylistYouTubeView'
 import { Spinner } from './components/ui/spinner'
 import { AuthContext } from './contexts/auth'
 import { Toaster } from "@/components/ui/sonner"
@@ -13,7 +14,8 @@ import {
   userPlaylistDetailLoader, 
   profileLoader,
   likedSongsLoader,
-  friendLikedSongsLoader
+  friendLikedSongsLoader,
+  playlistYouTubeQueueLoader
 } from './loaders'
 import './App.css'
 import FriendLikedSongs from './pages/FriendLikedSongs'
@@ -35,7 +37,7 @@ const spotifyAuthLoader: LoaderFunction = async () => {
   }
 }
 
-// loader function to check auth and spotify status for playlists
+// loader function to check auth and spotify status
 const fullAuthLoader: LoaderFunction = async () => {
   try {
     // check auth status
@@ -139,6 +141,18 @@ const router = createBrowserRouter([
           
           // if auth and spotify checks pass, load playlist detail
           return playlistDetailLoader(args)
+        },
+      },
+      {
+        path: "/watch/:id",
+        element: <ProtectedRoute><PlaylistYouTubeView /></ProtectedRoute>,
+        loader: async (args) => {
+          // first check auth and spotify status
+          const result = await fullAuthLoader(args)
+          if (result) return result // if it returns a redirect, pass it through
+          
+          // load YouTube queue data
+          return playlistYouTubeQueueLoader(args)
         },
       },
       {
