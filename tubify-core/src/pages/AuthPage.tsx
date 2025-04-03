@@ -60,6 +60,7 @@ export default function AuthPage() {
   const navigate = useNavigate()
   const { login } = useContext(AuthContext)
   const processingRef = useRef(false)
+  const codeProcessedRef = useRef<string | null>(null)
   const [formValues, setFormValues] = useState<{
     email: string;
     username: string;
@@ -106,10 +107,15 @@ export default function AuthPage() {
       return
     }
 
-    if (code && !processingRef.current) {
+    // prevent processing the same code twice
+    if (code && !processingRef.current && code !== codeProcessedRef.current) {
       const handleOAuthCallback = async () => {
         if (processingRef.current) return
         processingRef.current = true
+        codeProcessedRef.current = code
+        
+        // immediately clear the URL to prevent reuse of the code
+        window.history.replaceState({}, document.title, "/auth")
         
         // create a single toast with an ID
         const toastId = toast.loading("Processing authentication...", {
@@ -117,9 +123,6 @@ export default function AuthPage() {
         })
 
         try {
-          // clear the URL to prevent reuse of the code
-          window.history.replaceState({}, document.title, "/auth")
-          
           const provider = location.pathname.includes("google")
             ? "google"
             : "github"
@@ -155,7 +158,9 @@ export default function AuthPage() {
         } finally {
           // dismiss the loading toast if it's still showing
           toast.dismiss("oauth-processing")
-          processingRef.current = false
+          setTimeout(() => {
+            processingRef.current = false
+          }, 2000) // add a delay before allowing another processing
         }
       }
       

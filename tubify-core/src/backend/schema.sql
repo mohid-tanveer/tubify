@@ -137,6 +137,9 @@ CREATE TABLE IF NOT EXISTS liked_songs_sync_jobs (
     progress FLOAT DEFAULT 0,
     songs_processed INTEGER DEFAULT 0,
     songs_total INTEGER DEFAULT 0,
+    current_operation TEXT,
+    phase INTEGER DEFAULT 1,
+    total_phases INTEGER DEFAULT 2,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE IF NOT EXISTS similarity_presentations (
@@ -179,6 +182,8 @@ CREATE INDEX IF NOT EXISTS idx_friend_requests_sender_id ON friend_requests(send
 CREATE INDEX IF NOT EXISTS idx_friend_requests_receiver_id ON friend_requests(receiver_id);
 CREATE INDEX IF NOT EXISTS idx_user_liked_songs_user_id ON user_liked_songs(user_id);
 CREATE INDEX IF NOT EXISTS idx_user_liked_songs_song_id ON user_liked_songs(song_id);
+CREATE INDEX IF NOT EXISTS idx_user_liked_songs_liked_at ON user_liked_songs(user_id, liked_at);
+CREATE INDEX IF NOT EXISTS idx_user_liked_songs_liked_at_desc ON user_liked_songs(user_id, liked_at DESC);
 CREATE INDEX IF NOT EXISTS idx_liked_songs_sync_jobs_user_id ON liked_songs_sync_jobs(user_id);
 CREATE INDEX IF NOT EXISTS idx_liked_songs_sync_jobs_status ON liked_songs_sync_jobs(status);
 CREATE INDEX IF NOT EXISTS idx_similarity_presentations_creator_id ON similarity_presentations(creator_id);
@@ -196,7 +201,12 @@ CREATE INDEX IF NOT EXISTS idx_user_notifications_is_read ON user_notifications(
 CREATE INDEX IF NOT EXISTS idx_artist_genres_artist_id ON artist_genres(artist_id);
 CREATE INDEX IF NOT EXISTS idx_artist_genres_genre_id ON artist_genres(genre_id);
 CREATE INDEX IF NOT EXISTS idx_genres_name ON genres(name);
-CREATE INDEX IF NOT EXISTS idx_user_liked_songs_liked_at ON user_liked_songs(user_id, liked_at);
-CREATE INDEX IF NOT EXISTS idx_artist_genres_composite ON artist_genres(genre_id, artist_id);
+CREATE INDEX IF NOT EXISTS idx_songs_name ON songs(name);
 CREATE INDEX IF NOT EXISTS idx_songs_popularity ON songs(popularity);
+CREATE INDEX IF NOT EXISTS idx_songs_duration ON songs(duration_ms);
+CREATE INDEX IF NOT EXISTS idx_albums_release_date ON albums(release_date);
+CREATE INDEX IF NOT EXISTS idx_albums_name ON albums(name);
+CREATE INDEX IF NOT EXISTS idx_artists_name ON artists(name);
+CREATE INDEX IF NOT EXISTS idx_liked_songs_sync_jobs_updated ON liked_songs_sync_jobs(user_id, started_at DESC);
+CREATE INDEX IF NOT EXISTS idx_spotify_credentials_liked_songs ON spotify_credentials(user_id, liked_songs_sync_status, last_liked_songs_sync);
 CREATE INDEX IF NOT EXISTS idx_genres_id_to_name ON genres(id);

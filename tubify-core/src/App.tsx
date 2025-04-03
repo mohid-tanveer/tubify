@@ -7,6 +7,7 @@ import { Toaster } from "@/components/ui/sonner"
 import api from './lib/axios'
 import { playlistsLoader, playlistDetailLoader, userProfileLoader, userPlaylistsLoader, userPlaylistDetailLoader, profileLoader } from './loaders'
 import './App.css'
+import FriendLikedSongs from './pages/FriendLikedSongs'
 
 interface User {
   id: number
@@ -138,6 +139,17 @@ const router = createBrowserRouter([
       {
         path: "/liked-songs",
         element: <ProtectedRoute><LikedSongs /></ProtectedRoute>,
+        loader: async (args) => {
+          // first check auth and spotify status
+          const result = await fullAuthLoader(args)
+          if (result) return result // if it returns a redirect, pass it through
+          
+          return null
+        },
+      },
+      {
+        path: "/users/:username/liked-songs",
+        element: <ProtectedRoute><FriendLikedSongs /></ProtectedRoute>,
         loader: async (args) => {
           // first check auth and spotify status
           const result = await fullAuthLoader(args)

@@ -11,6 +11,9 @@ interface SyncStatus {
   progress: number
   total_songs: number
   processed_songs: number
+  current_operation: string | null
+  phase: number
+  total_phases: number
 }
 
 interface LikedSongsSyncProps {
@@ -29,7 +32,10 @@ export function LikedSongsSync({ initialStatus }: LikedSongsSyncProps) {
           last_synced_at: initialStatus.lastSynced,
           progress: 0,
           total_songs: initialStatus.count,
-          processed_songs: 0
+          processed_songs: 0,
+          current_operation: null,
+          phase: 0,
+          total_phases: 0
         } 
       : null
   )
@@ -56,47 +62,33 @@ export function LikedSongsSync({ initialStatus }: LikedSongsSyncProps) {
             status.progress !== newStatus.progress ||
             status.total_songs !== newStatus.total_songs ||
             status.processed_songs !== newStatus.processed_songs ||
-            status.last_synced_at !== newStatus.last_synced_at) {
+            status.last_synced_at !== newStatus.last_synced_at ||
+            status.current_operation !== newStatus.current_operation ||
+            status.phase !== newStatus.phase) {
           setStatus(newStatus)
         }
         
         setIsLoading(false)
 
-        // if syncing, continue polling
-        if (newStatus.is_syncing && newStatus.progress < 0.99) {
+        // if syncing, continue polling regardless of progress 
+        if (newStatus.is_syncing) {
           setIsSyncing(true)
           
-          // determine polling interval based on progress
-          // more frequent updates when progress is active, less frequent at start
-          if (newStatus.total_songs === 0) {
+          // determine polling interval based on phase
+          // more frequent updates during active database operations
+          if (newStatus.phase === 1 && newStatus.total_songs === 0) {
             // starting phase - poll less frequently
             return 5000
+          } else if (newStatus.phase === 2) {
+            // database operations phase - poll more frequently
+            return 1500
           } else {
-            // active syncing phase - poll more frequently
+            // active syncing phase - poll regularly
             return 2000
           }
         } else {
-          // stop polling when sync is complete or progress is at 100%
+          // stop polling when sync is complete
           setIsSyncing(false)
-          
-          // if progress is at 100% but status still says syncing, 
-          // the job might be in the finishing stage
-          if (newStatus.is_syncing && newStatus.progress >= 0.99) {
-            // get the status again after a short delay to confirm completion
-            setTimeout(async () => {
-              if (!isComponentMounted) return
-              
-              try {
-                const finalResponse = await api.get("/api/liked-songs/sync/status")
-                if (isComponentMounted) {
-                  setStatus(finalResponse.data)
-                }
-              } catch (error) {
-                console.error("Failed to get final sync status:", error)
-              }
-            }, 3000)
-          }
-          
           return null  // no further polling needed
         }
       } catch (error) {
@@ -201,9 +193,16 @@ export function LikedSongsSync({ initialStatus }: LikedSongsSyncProps) {
           {status.is_syncing ? (
             <div>
               <div className="flex items-center justify-between text-sm text-slate-400">
-                <span>syncing your liked songs...</span>
                 <span>
-                  {status.processed_songs} / {status.total_songs || "?"}
+                  {status.current_operation 
+                    ? `${status.current_operation}` 
+                    : "syncing your liked songs..."}
+                </span>
+                <span>
+                  {status.phase === 1 
+                    ? `${status.processed_songs} / ${status.total_songs || "?"} songs` 
+                    : `${Math.round(status.progress * 100)}%`
+                  }
                 </span>
               </div>
               

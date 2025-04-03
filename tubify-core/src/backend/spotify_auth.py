@@ -134,6 +134,7 @@ async def spotify_callback(
 
         # get spotify user info
         spotify_user = sp.current_user()
+        print(spotify_user)
 
         # store spotify credentials
         expires_at = datetime.fromtimestamp(token_info["expires_at"])
