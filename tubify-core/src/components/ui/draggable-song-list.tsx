@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect } from "react"
 import { 
   DndContext, 
   closestCenter,
@@ -11,35 +11,35 @@ import {
   defaultDropAnimationSideEffects,
   DropAnimation,
   DragStartEvent,
-} from "@dnd-kit/core";
+} from "@dnd-kit/core"
 import {
   arrayMove,
   SortableContext,
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
-} from "@dnd-kit/sortable";
-import { SortableSongItem } from "./sortable-song-item";
-import api from "@/lib/axios";
+} from "@dnd-kit/sortable"
+import { SortableSongItem } from "./sortable-song-item"
+import api from "@/lib/axios"
 import { toast } from "sonner"
-import { clearPlaylistDetailCache } from "@/loaders/playlist-loaders";
+import { clearPlaylistDetailCache } from "@/loaders/playlist-loaders"
 
 // song type
 interface Song {
-  id: string;
-  name: string;
-  artist: string;
-  album?: string;
-  spotify_uri: string;
-  duration_ms?: number;
-  album_art_url?: string;
-  created_at: string;
+  id: string
+  name: string
+  artist: string[]
+  album: string
+  spotify_uri: string
+  duration_ms: number
+  album_art_url: string
+  created_at: string
 }
 
 interface DraggableSongListProps {
-  songs: Song[];
-  playlistPublicId: string;
-  onSongRemoved: () => void;
-  onSongsReordered: (songs: Song[]) => void;
+  songs: Song[]
+  playlistPublicId: string
+  onSongRemoved: () => void
+  onSongsReordered: (songs: Song[]) => void
 }
 
 const dropAnimation: DropAnimation = {
@@ -50,7 +50,7 @@ const dropAnimation: DropAnimation = {
       },
     },
   }),
-};
+}
 
 export function DraggableSongList({ 
   songs, 
@@ -58,21 +58,21 @@ export function DraggableSongList({
   onSongRemoved,
   onSongsReordered
 }: DraggableSongListProps) {
-  const [items, setItems] = useState<Song[]>(songs);
-  const [isReordering, setIsReordering] = useState(false);
-  const [isDragging, setIsDragging] = useState(false);
-  const [activeId, setActiveId] = useState<string | null>(null);
+  const [items, setItems] = useState<Song[]>(songs)
+  const [isReordering, setIsReordering] = useState(false)
+  const [isDragging, setIsDragging] = useState(false)
+  const [activeId, setActiveId] = useState<string | null>(null)
   
   // update items when songs prop changes
   useEffect(() => {
-    setItems(songs);
-  }, [songs]);
+    setItems(songs)
+  }, [songs])
   
   // handle song removed
   const handleSongRemoved = () => {
     // call parent callback to refresh data
-    onSongRemoved();
-  };
+    onSongRemoved()
+  }
 
   // prevent body scrolling during drag
   useEffect(() => {
@@ -81,18 +81,18 @@ export function DraggableSongList({
       // prevent horizontal scrolling during drag
       const preventHorizontalScroll = (e: WheelEvent) => {
         if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
-          e.preventDefault();
+          e.preventDefault()
         }
-      };
+      }
       
       // add event listener to prevent horizontal scrolling
-      document.addEventListener('wheel', preventHorizontalScroll, { passive: false });
+      document.addEventListener('wheel', preventHorizontalScroll, { passive: false })
       
       return () => {
-        document.removeEventListener('wheel', preventHorizontalScroll);
-      };
+        document.removeEventListener('wheel', preventHorizontalScroll)
+      }
     }
-  }, [isDragging]);
+  }, [isDragging])
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -100,76 +100,76 @@ export function DraggableSongList({
         distance: 4,
       },
       canStartDragging: (event: { target: EventTarget }) => {
-        return !(event.target as HTMLElement).closest('[data-no-dnd="true"]');
+        return !(event.target as HTMLElement).closest('[data-no-dnd="true"]')
       },
     }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
     })
-  );
+  )
 
   const handleDragStart = (event: DragStartEvent) => {
-    const { active } = event;
-    setActiveId(String(active.id));
-    setIsDragging(true);
-  };
+    const { active } = event
+    setActiveId(String(active.id))
+    setIsDragging(true)
+  }
   
   const handleDragCancel = () => {
-    setActiveId(null);
-    setIsDragging(false);
-  };
+    setActiveId(null)
+    setIsDragging(false)
+  }
 
   const handleDragEnd = async (event: DragEndEvent) => {
-    setIsDragging(false);
-    setActiveId(null);
+    setIsDragging(false)
+    setActiveId(null)
     
-    const { active, over } = event;
+    const { active, over } = event
     
     if (over && active.id !== over.id) {
       // find indices for the items being reordered
-      const oldIndex = items.findIndex((item) => item.id === active.id);
-      const newIndex = items.findIndex((item) => item.id === over.id);
+      const oldIndex = items.findIndex((item) => item.id === active.id)
+      const newIndex = items.findIndex((item) => item.id === over.id)
       
       // create the reordered array
-      const reorderedItems = arrayMove(items, oldIndex, newIndex);
+      const reorderedItems = arrayMove(items, oldIndex, newIndex)
       
       // update local state immediately for responsive UI
-      setItems(reorderedItems);
+      setItems(reorderedItems)
       
       // update backend
       try {
-        setIsReordering(true);
+        setIsReordering(true)
         
         // get song ids in new order
-        const updatedSongIds = reorderedItems.map((song) => song.id);
+        const updatedSongIds = reorderedItems.map((song) => song.id)
         
         // call API to update order with the correct format
         await api.put(`/api/playlists/${playlistPublicId}/songs/reorder`, {
           song_ids: updatedSongIds
-        });
+        })
         
         // clear cache for this playlist
-        clearPlaylistDetailCache(playlistPublicId);
+        clearPlaylistDetailCache(playlistPublicId)
         
         // notify parent component
-        onSongsReordered(reorderedItems);
+        onSongsReordered(reorderedItems)
       } catch (error) {
         if (process.env.NODE_ENV === 'development') {
-          console.error("failed to reorder songs:", error);
+          console.error("failed to reorder songs:", error)
         }
-        toast.error("failed to update song order");
+        toast.error("failed to update song order")
         
         // revert to original order on error
-        setItems(songs);
+        setItems(songs)
       } finally {
-        setIsReordering(false);
+        setIsReordering(false)
       }
     }
-  };
+  }
 
   // find active song for overlay
-  const activeSong = activeId ? items.find(song => song.id === activeId) : null;
-  const activeIndex = activeSong ? items.findIndex(song => song.id === activeId) : -1;
+  const activeSong = activeId ? items.find(song => song.id === activeId) : null
+  const activeIndex = activeSong ? items.findIndex(song => song.id === activeId) : -1
 
   return (
     <div className="space-y-2 pb-8">
@@ -218,7 +218,7 @@ export function DraggableSongList({
                 </div>
               </div>
               <div className="col-span-3 flex items-center text-slate-300 text-xs md:text-sm">
-                {activeSong.artist}
+                {Array.isArray(activeSong.artist) ? activeSong.artist.join(', ') : activeSong.artist}
               </div>
               <div className="col-span-3 flex items-center justify-end text-slate-400 text-xs md:text-sm">
               </div>
@@ -227,5 +227,5 @@ export function DraggableSongList({
         </DragOverlay>
       </DndContext>
     </div>
-  );
+  )
 } 

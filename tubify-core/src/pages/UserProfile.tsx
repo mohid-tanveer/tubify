@@ -1,7 +1,7 @@
 import { useLoaderData, useNavigate } from "react-router-dom"
 import { TubifyTitle } from "@/components/ui/tubify-title"
 import { Button } from "@/components/ui/button"
-import { Music } from "lucide-react"
+import { Music, Heart } from "lucide-react"
 
 interface UserProfileData {
   username: string
@@ -10,8 +10,19 @@ interface UserProfileData {
   playlistCount: number
 }
 
+interface LikedSongsStats {
+  friend_likes_count: number
+  shared_likes_count: number
+  user_likes_count: number
+  friend_unique_count: number
+  compatibility_percentage: number
+}
+
 export default function UserProfile() {
-  const { profile } = useLoaderData() as { profile: UserProfileData }
+  const { profile, likedSongsStats } = useLoaderData() as { 
+    profile: UserProfileData, 
+    likedSongsStats: LikedSongsStats | null 
+  }
   const navigate = useNavigate()
 
   return (
@@ -30,7 +41,7 @@ export default function UserProfile() {
           <h2 className="text-white text-2xl">{profile.username}</h2>
           <p className="text-white text-center">{profile.bio || "No bio yet"}</p>
           
-          <div className="flex gap-4 mt-4">
+          <div className="flex flex-col gap-4 mt-4 w-full">
             <Button 
               onClick={() => navigate(`/users/${profile.username}/playlists`)}
               className="flex items-center gap-2"
@@ -38,6 +49,32 @@ export default function UserProfile() {
               <Music className="h-4 w-4" />
               View Playlists ({profile.playlistCount})
             </Button>
+            
+            {likedSongsStats && likedSongsStats.friend_likes_count > 0 && (
+              <>
+                <Button 
+                  onClick={() => navigate(`/users/${profile.username}/liked-songs`)}
+                  className="flex items-center gap-2 bg-pink-700 hover:bg-pink-800"
+                >
+                  <Heart className="h-4 w-4" />
+                  View Liked Songs ({likedSongsStats.friend_likes_count})
+                </Button>
+                
+                <div className="bg-slate-800 rounded-lg p-4 text-white text-sm">
+                  <h3 className="font-medium mb-2">Music Compatibility</h3>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <span className="block text-slate-400">Shared Songs</span>
+                      <span className="text-lg font-bold">{likedSongsStats.shared_likes_count}</span>
+                    </div>
+                    <div>
+                      <span className="block text-slate-400">Compatibility</span>
+                      <span className="text-lg font-bold">{likedSongsStats.compatibility_percentage}%</span>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
             
             <Button 
               variant="outline" 

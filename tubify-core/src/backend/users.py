@@ -35,7 +35,7 @@ class Song(BaseModel):
     album: Optional[str] = None
     duration_ms: Optional[int] = None
     album_art_url: Optional[str] = None
-    created_at: str
+    spotify_uri: Optional[str] = None
 
 
 class UserPlaylist(BaseModel):
@@ -173,19 +173,35 @@ async def get_user_playlist(public_id: str):
             p.updated_at,
             u.username,
             COALESCE(
-                (SELECT json_agg(json_build_object(
-                    'id', s.id,
-                    'name', s.name,
-                    'artist', s.artist,
-                    'album', s.album,
-                    'duration_ms', s.duration_ms,
-                    'spotify_uri', s.spotify_uri,
-                    'album_art_url', s.album_art_url,
-                    'created_at', s.created_at
-                ) ORDER BY ps.position)
-                FROM playlist_songs ps
-                JOIN songs s ON ps.song_id = s.id
-                WHERE ps.playlist_id = p.id),
+                (SELECT json_agg(
+                    json_build_object(
+                        'id', song_data.id,
+                        'name', song_data.name,
+                        'artist', song_data.artist_names,
+                        'album', song_data.album_name,
+                        'spotify_uri', song_data.spotify_uri,
+                        'duration_ms', song_data.duration_ms,
+                        'album_art_url', song_data.image_url
+                    ) ORDER BY song_data.position
+                )
+                FROM (
+                    SELECT 
+                        s.id,
+                        s.name,
+                        array_agg(a.name ORDER BY sa.list_position) as artist_names,
+                        al.name as album_name,
+                        s.spotify_uri,
+                        s.duration_ms,
+                        al.image_url,
+                        ps.position
+                    FROM playlist_songs ps
+                    JOIN songs s ON ps.song_id = s.id
+                    JOIN song_artists sa ON s.id = sa.song_id
+                    JOIN artists a ON sa.artist_id = a.id
+                    JOIN albums al ON s.album_id = al.id
+                    WHERE ps.playlist_id = p.id
+                    GROUP BY s.id, al.name, al.image_url, ps.position
+                ) as song_data),
                 '[]'::json
             ) as songs
         FROM playlists p

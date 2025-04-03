@@ -1,7 +1,2 @@
-export { playlistsLoader, playlistDetailLoader } from "./playlist-loaders"
-export {
-  userProfileLoader,
-  userPlaylistsLoader,
-  userPlaylistDetailLoader,
-  profileLoader,
-} from "./user-loaders"
+export * from "./playlist-loaders"
+export * from "./user-loaders"

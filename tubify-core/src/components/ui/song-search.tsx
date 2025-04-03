@@ -97,13 +97,23 @@ export function SongSearch({ playlistPublicId, onSongAdded }: SongSearchProps) {
       }
 
       // add song to playlist
-      await api.post(`/api/playlists/${playlistPublicId}/songs`, [songData])
+      const response = await api.post(`/api/playlists/${playlistPublicId}/songs`, [songData])
       
       // notify parent component
       onSongAdded()
       
-      // show success message
-      toast.success(`added "${song.name}" to playlist`)
+      // handle different response types based on status
+      if (response.data.status === "success") {
+        toast.success(`added "${song.name}" to playlist`)
+      } else if (response.data.status === "partial") {
+        if (response.data.message.includes("already in the playlist")) {
+          toast.warning(response.data.message)
+        } else {
+          toast.success(response.data.message)
+        }
+      } else {
+        toast.info(response.data.message || `added "${song.name}" to playlist`)
+      }
       
       // clear search results
       setSearchQuery("")
@@ -113,7 +123,7 @@ export function SongSearch({ playlistPublicId, onSongAdded }: SongSearchProps) {
         console.error("failed to add song:", error)
       }
       if (error instanceof AxiosError && error.response?.status === 409) {
-        toast.error("song already in playlist")
+        toast.error(`"${song.name}" is already in this playlist`)
         return
       }
       toast.error("failed to add song to playlist")

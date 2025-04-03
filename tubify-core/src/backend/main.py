@@ -9,8 +9,8 @@ from profile import router as profile_router
 from songs import router as songs_router
 from users import router as users_router
 from search import router as search_router
-from history import router as history_router
-from database import database, lifespan
+from liked_songs import router as liked_songs_router
+from database import lifespan
 
 # load environment variables
 load_dotenv()
@@ -54,7 +54,7 @@ app.include_router(profile_router)
 app.include_router(songs_router)
 app.include_router(users_router)
 app.include_router(search_router)
-app.include_router(history_router)
+app.include_router(liked_songs_router)
 if __name__ == "__main__":
     uvicorn.run(
         app,

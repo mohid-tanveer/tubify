@@ -5,14 +5,14 @@ import { SongItem } from "@/components/ui/song-item"
 
 // song type
 interface Song {
-  id: number
+  id: string
   spotify_id: string
   name: string
-  artist: string
-  album?: string
-  duration_ms?: number
+  artist: string[]
+  album: string
+  duration_ms: number
   spotify_uri: string
-  album_art_url?: string
+  album_art_url: string
   created_at: string
 }
 

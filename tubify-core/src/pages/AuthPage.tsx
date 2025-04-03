@@ -59,12 +59,8 @@ export default function AuthPage() {
   const location = useLocation()
   const navigate = useNavigate()
   const { login } = useContext(AuthContext)
-  const [errors, setErrors] = useState<{
-    login?: string
-    register?: string
-    oauth?: string
-  }>({})
   const processingRef = useRef(false)
+  const codeProcessedRef = useRef<string | null>(null)
   const [formValues, setFormValues] = useState<{
     email: string;
     username: string;
@@ -103,18 +99,23 @@ export default function AuthPage() {
     const error = urlParams.get("error")
 
     if (error) {
-      setErrors(prev => ({
-        ...prev,
-        oauth: `Authentication failed: ${error}`
-      }))
+      toast.error(`Authentication failed`, {
+        duration: 10000,
+        id: "oauth-error"
+      })
       navigate("/auth")
       return
     }
 
-    if (code && !processingRef.current) {
+    // prevent processing the same code twice
+    if (code && !processingRef.current && code !== codeProcessedRef.current) {
       const handleOAuthCallback = async () => {
         if (processingRef.current) return
         processingRef.current = true
+        codeProcessedRef.current = code
+        
+        // immediately clear the URL to prevent reuse of the code
+        window.history.replaceState({}, document.title, "/auth")
         
         // create a single toast with an ID
         const toastId = toast.loading("Processing authentication...", {
@@ -122,9 +123,6 @@ export default function AuthPage() {
         })
 
         try {
-          // clear the URL to prevent reuse of the code
-          window.history.replaceState({}, document.title, "/auth")
-          
           const provider = location.pathname.includes("google")
             ? "google"
             : "github"
@@ -153,14 +151,16 @@ export default function AuthPage() {
           if (process.env.NODE_ENV === "development") {
             console.error("Detailed error:", errorMessage)
           }
-          setErrors(prev => ({
-            ...prev,
-            oauth: errorMessage
-          }))
+          toast.error("Oauth authentication failed. Please try again.", {
+            duration: 10000,
+            id: "oauth-error"
+          })
         } finally {
           // dismiss the loading toast if it's still showing
           toast.dismiss("oauth-processing")
-          processingRef.current = false
+          setTimeout(() => {
+            processingRef.current = false
+          }, 2000) // add a delay before allowing another processing
         }
       }
       
@@ -170,11 +170,6 @@ export default function AuthPage() {
   
   return (
     <div className="grid min-h-screen lg:grid-cols-2">
-      {errors?.oauth && (
-        <div className="absolute top-4 right-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-          {errors.oauth}
-        </div>
-      )}
       <div className="hidden lg:block bg-zinc-900">
         <div className="flex h-full flex-col">
           <div className="flex items-center text-lg p-10 font-medium">

@@ -1,38 +1,38 @@
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Music, Play, Trash2, Loader2 } from "lucide-react";
-import api from "@/lib/axios";
-import { toast } from "sonner";
-import { useSortable } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
-import { clearPlaylistDetailCache, clearPlaylistsCache } from "@/loaders/playlist-loaders";
+import { useState } from "react"
+import { Button } from "@/components/ui/button"
+import { Music, Play, Trash2, Loader2 } from "lucide-react"
+import api from "@/lib/axios"
+import { toast } from "sonner"
+import { useSortable } from "@dnd-kit/sortable"
+import { CSS } from "@dnd-kit/utilities"
+import { clearPlaylistDetailCache, clearPlaylistsCache } from "@/loaders/playlist-loaders"
 
 // song type
 interface Song {
-  id: string;
-  name: string;
-  artist: string;
-  album?: string;
-  duration_ms?: number;
-  spotify_uri: string;
-  album_art_url?: string;
-  created_at: string;
+  id: string
+  name: string
+  artist: string[]
+  album: string
+  duration_ms: number
+  spotify_uri: string
+  album_art_url: string
+  created_at: string
 }
 
 // format duration from ms to mm:ss
 const formatDuration = (ms: number | undefined) => {
-  if (!ms) return "--:--";
-  const minutes = Math.floor(ms / 60000);
-  const seconds = Math.floor((ms % 60000) / 1000);
-  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
-};
+  if (!ms) return "--:--"
+  const minutes = Math.floor(ms / 60000)
+  const seconds = Math.floor((ms % 60000) / 1000)
+  return `${minutes}:${seconds.toString().padStart(2, "0")}`
+}
 
 interface SortableSongItemProps {
-  song: Song;
-  index: number;
-  playlistPublicId: string;
-  onSongRemoved: () => void;
-  disabled?: boolean;
+  song: Song
+  index: number
+  playlistPublicId: string
+  onSongRemoved: () => void
+  disabled?: boolean
 }
 
 export function SortableSongItem({ 
@@ -42,7 +42,7 @@ export function SortableSongItem({
   onSongRemoved,
   disabled = false
 }: SortableSongItemProps) {
-  const [isRemoving, setIsRemoving] = useState(false);
+  const [isRemoving, setIsRemoving] = useState(false)
   
   // setup sortable hook
   const {
@@ -58,7 +58,7 @@ export function SortableSongItem({
       duration: 150,
       easing: 'cubic-bezier(0.25, 1, 0.5, 1)'
     }
-  });
+  })
   
   // apply styles for dragging
   const style = {
@@ -67,38 +67,38 @@ export function SortableSongItem({
     opacity: isDragging ? 0.5 : 1,
     zIndex: isDragging ? 1 : 0,
     willChange: isDragging ? 'transform' : 'auto',
-  };
+  }
 
   const handleRemoveSong = async (e: React.MouseEvent) => {
-    e.stopPropagation();
+    e.stopPropagation()
     
     try {
-      setIsRemoving(true);
-      await api.delete(`/api/playlists/${playlistPublicId}/songs/${song.id}`);
+      setIsRemoving(true)
+      await api.delete(`/api/playlists/${playlistPublicId}/songs/${song.id}`)
       
       // clear caches to ensure fresh data
-      clearPlaylistDetailCache(playlistPublicId);
-      clearPlaylistsCache();
+      clearPlaylistDetailCache(playlistPublicId)
+      clearPlaylistsCache()
       
       // notify parent component
-      onSongRemoved();
+      onSongRemoved()
     } catch (error) {
       if (process.env.NODE_ENV === 'development') {
-        console.error("failed to remove song:", error);
+        console.error("failed to remove song:", error)
       }
-      toast.error("failed to remove song from playlist");
+      toast.error("failed to remove song from playlist")
     } finally {
-      setIsRemoving(false);
+      setIsRemoving(false)
     }
-  };
+  }
 
   const handlePlayPreview = (e: React.MouseEvent) => {
-    e.stopPropagation();
+    e.stopPropagation()
     
     if (song.spotify_uri) {
-      window.open(song.spotify_uri, "_blank");
+      window.open(song.spotify_uri, "_blank")
     }
-  };
+  }
 
   return (
     <div 
@@ -137,7 +137,7 @@ export function SortableSongItem({
         </div>
       </div>
       <div className="col-span-3 flex items-center text-slate-300 text-xs md:text-sm">
-        {song.artist}
+        {Array.isArray(song.artist) ? song.artist.join(', ') : song.artist}
       </div>
       <div className="col-span-2 flex items-center justify-end gap-2 text-slate-400 text-xs md:text-sm">
         {song.spotify_uri && (
@@ -171,5 +171,5 @@ export function SortableSongItem({
         </Button>
       </div>
     </div>
-  );
+  )
 } 

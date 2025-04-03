@@ -22,7 +22,8 @@ import {
   UserProfile,
   UserPlaylists,
   UserPlaylistDetail,
-  History,
+  LikedSongs,
+  RecentlyPlayed,
 } from "./pages";
 import { Spinner } from "./components/ui/spinner";
 import { AuthContext } from "./contexts/auth";
@@ -35,8 +36,11 @@ import {
   userPlaylistsLoader,
   userPlaylistDetailLoader,
   profileLoader,
+  likedSongsLoader,
+  friendLikedSongsLoader,
 } from "./loaders";
 import "./App.css";
+import FriendLikedSongs from "./pages/FriendLikedSongs";
 
 interface User {
   id: number;
@@ -131,14 +135,6 @@ const router = createBrowserRouter([
         loader: profileLoader,
       },
       {
-        path: "/history",
-        element: (
-          <ProtectedRoute>
-            <History />
-          </ProtectedRoute>
-        ),
-      },
-      {
         path: "/users/:username",
         element: (
           <ProtectedRoute>
@@ -155,6 +151,22 @@ const router = createBrowserRouter([
           </ProtectedRoute>
         ),
         loader: userPlaylistsLoader,
+      },
+      {
+        path: "/recently-played",
+        element: (
+          <ProtectedRoute>
+            <RecentlyPlayed />
+          </ProtectedRoute>
+        ),
+        loader: async (args) => {
+          // check authentication and Spotify connection
+          const result = await fullAuthLoader(args);
+          if (result) return result; // redirect if auth or Spotify check fails
+
+          // if checks pass, return null to proceed
+          return null;
+        },
       },
       {
         path: "/users/playlists/:id",
@@ -200,6 +212,38 @@ const router = createBrowserRouter([
             <Search />
           </ProtectedRoute>
         ),
+      },
+      {
+        path: "/liked-songs",
+        element: (
+          <ProtectedRoute>
+            <LikedSongs />
+          </ProtectedRoute>
+        ),
+        loader: async (args) => {
+          // first check auth and spotify status
+          const result = await fullAuthLoader(args);
+          if (result) return result; // if it returns a redirect, pass it through
+
+          // if auth checks pass, load liked songs
+          return likedSongsLoader(args);
+        },
+      },
+      {
+        path: "/users/:username/liked-songs",
+        element: (
+          <ProtectedRoute>
+            <FriendLikedSongs />
+          </ProtectedRoute>
+        ),
+        loader: async (args) => {
+          // first check auth and spotify status
+          const result = await fullAuthLoader(args);
+          if (result) return result; // if it returns a redirect, pass it through
+
+          // if auth checks pass, load friend's liked songs
+          return friendLikedSongsLoader(args);
+        },
       },
     ],
   },
