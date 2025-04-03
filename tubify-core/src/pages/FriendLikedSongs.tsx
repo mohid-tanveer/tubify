@@ -48,7 +48,7 @@ export default function FriendLikedSongs() {
   const [isSearching, setIsSearching] = useState(false)
   const pageSize = 20
   
-  // Fetch stats on load
+  // fetch stats on load
   useEffect(() => {
     const fetchStats = async () => {
       try {
@@ -63,7 +63,7 @@ export default function FriendLikedSongs() {
     fetchStats()
   }, [username])
   
-  // Fetch songs when page, filter or search changes
+  // fetch songs when page, filter or search changes
   useEffect(() => {
     const fetchSongs = async () => {
       try {
@@ -80,7 +80,7 @@ export default function FriendLikedSongs() {
         const response = await api.get(url)
         setSongs(response.data)
         
-        // Update total count based on filter
+        // update total count based on filter
         if (stats) {
           if (filterType === "all") {
             setTotalSongs(stats.friend_likes_count)
@@ -125,12 +125,12 @@ export default function FriendLikedSongs() {
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
     setIsSearching(true)
-    setPage(1) // Reset to first page on new search
+    setPage(1) // reset to first page on new search
   }
   
   const handleFilterChange = (value: string) => {
     setFilterType(value)
-    setPage(1) // Reset to first page on filter change
+    setPage(1) // reset to first page on filter change
   }
   
   return (
@@ -162,7 +162,7 @@ export default function FriendLikedSongs() {
           )}
         </div>
         
-        {/* Search and filter controls */}
+        {/* search and filter controls */}
         <div className="mb-6 flex flex-col md:flex-row gap-4">
           <form onSubmit={handleSearch} className="flex-1 flex gap-2">
             <Input

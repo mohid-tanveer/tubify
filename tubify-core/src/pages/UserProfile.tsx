@@ -25,7 +25,7 @@ export default function UserProfile() {
   const navigate = useNavigate()
   const [likedSongsStats, setLikedSongsStats] = useState<LikedSongsStats | null>(null)
 
-  // Fetch liked songs stats when viewing a friend's profile
+  // fetch liked songs stats when viewing a friend's profile
   useEffect(() => {
     const fetchLikedSongsStats = async () => {
       try {
@@ -33,7 +33,7 @@ export default function UserProfile() {
         setLikedSongsStats(response.data)
       } catch (error) {
         console.error("Failed to fetch liked songs stats:", error)
-        // If not found, just don't show the liked songs option
+        // if not found, just don't show the liked songs option
       }
     }
 

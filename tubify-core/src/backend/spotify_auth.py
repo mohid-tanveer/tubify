@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, BackgroundTasks
 from fastapi.responses import RedirectResponse
 from datetime import datetime, timedelta, timezone
 import spotipy
-from spotipy.oauth2 import SpotifyOAuth
+from spotipy.oauth2 import SpotifyOAuth, CacheHandler
 import os
 from typing import Optional
 from auth import get_current_user, User
@@ -38,13 +38,27 @@ SPOTIFY_REDIRECT_URI = os.getenv("SPOTIFY_REDIRECT_URI")
 if not all([SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET, SPOTIFY_REDIRECT_URI]):
     raise ValueError("missing required spotify environment variables")
 
-# initialize spotify oauth
+
+# custom memory cache handler that doesn't write to disk
+class MemoryCacheHandler(CacheHandler):
+    def __init__(self):
+        self.token_info = None
+
+    def get_cached_token(self):
+        return self.token_info
+
+    def save_token_to_cache(self, token_info):
+        self.token_info = token_info
+
+
+# initialize spotify oauth without caching
 sp_oauth = SpotifyOAuth(
     client_id=SPOTIFY_CLIENT_ID,
     client_secret=SPOTIFY_CLIENT_SECRET,
     redirect_uri=SPOTIFY_REDIRECT_URI,
     scope=" ".join(SPOTIFY_SCOPES),
     show_dialog=True,  # force user to approve every time
+    cache_handler=MemoryCacheHandler(),  # use memory cache that doesn't persist
 )
 
 
@@ -62,7 +76,15 @@ async def get_spotify_client(user: User = Depends(get_current_user)) -> spotipy.
         )
 
     if datetime.now(timezone.utc) >= spotify_creds["token_expires_at"]:
-        token_info = sp_oauth.refresh_access_token(spotify_creds["refresh_token"])
+        # create a fresh OAuth instance for token refresh to avoid cache issues
+        user_oauth = SpotifyOAuth(
+            client_id=SPOTIFY_CLIENT_ID,
+            client_secret=SPOTIFY_CLIENT_SECRET,
+            redirect_uri=SPOTIFY_REDIRECT_URI,
+            scope=" ".join(SPOTIFY_SCOPES),
+            cache_handler=MemoryCacheHandler(),
+        )
+        token_info = user_oauth.refresh_access_token(spotify_creds["refresh_token"])
         await database.execute(
             """
             UPDATE spotify_credentials 
@@ -134,40 +156,42 @@ async def spotify_callback(
 
         # get spotify user info
         spotify_user = sp.current_user()
-        print(spotify_user)
 
         # store spotify credentials
         expires_at = datetime.fromtimestamp(token_info["expires_at"])
-        await database.execute(
-            """
-            INSERT INTO spotify_credentials (
-                user_id, spotify_id, access_token, refresh_token, token_expires_at,
-                liked_songs_sync_status, liked_songs_count
-            ) VALUES (
-                :user_id, :spotify_id, :access_token, :refresh_token, :expires_at,
-                'not_started', 0
+        try:
+            await database.execute(
+                """
+                INSERT INTO spotify_credentials (
+                    user_id, spotify_id, access_token, refresh_token, token_expires_at,
+                    liked_songs_sync_status, liked_songs_count
+                ) VALUES (
+                    :user_id, :spotify_id, :access_token, :refresh_token, :expires_at,
+                    'not_started', 0
+                )
+                ON CONFLICT (user_id) DO UPDATE SET
+                    spotify_id = EXCLUDED.spotify_id,
+                    access_token = EXCLUDED.access_token,
+                    refresh_token = EXCLUDED.refresh_token,
+                    token_expires_at = EXCLUDED.token_expires_at,
+                    last_used_at = CURRENT_TIMESTAMP,
+                    liked_songs_sync_status = 
+                        CASE 
+                            WHEN spotify_credentials.liked_songs_sync_status = 'completed' 
+                            THEN 'needs_update' 
+                            ELSE COALESCE(spotify_credentials.liked_songs_sync_status, 'not_started')
+                        END
+            """,
+                {
+                    "user_id": user_id,
+                    "spotify_id": spotify_user["id"],
+                    "access_token": token_info["access_token"],
+                    "refresh_token": token_info["refresh_token"],
+                    "expires_at": expires_at,
+                },
             )
-            ON CONFLICT (user_id) DO UPDATE SET
-                spotify_id = EXCLUDED.spotify_id,
-                access_token = EXCLUDED.access_token,
-                refresh_token = EXCLUDED.refresh_token,
-                token_expires_at = EXCLUDED.token_expires_at,
-                last_used_at = CURRENT_TIMESTAMP,
-                liked_songs_sync_status = 
-                    CASE 
-                        WHEN spotify_credentials.liked_songs_sync_status = 'completed' 
-                        THEN 'needs_update' 
-                        ELSE COALESCE(spotify_credentials.liked_songs_sync_status, 'not_started')
-                    END
-        """,
-            {
-                "user_id": user_id,
-                "spotify_id": spotify_user["id"],
-                "access_token": token_info["access_token"],
-                "refresh_token": token_info["refresh_token"],
-                "expires_at": expires_at,
-            },
-        )
+        except Exception as e:
+            print(f"error: {e}")
 
         # start background task to sync liked songs
         if background_tasks:
