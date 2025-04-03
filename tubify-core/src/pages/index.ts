@@ -12,4 +12,5 @@ export { default as UserPlaylists } from "./UserPlaylists";
 export { default as UserPlaylistDetail } from "./UserPlaylistDetail";
 export { default as WatchPage } from "./WatchPage";
 export { default as LikedSongs } from "./LikedSongs";
+export { default as PlaylistYouTubeView } from "./PlaylistYouTubeView";
 export { default as RecentlyPlayed } from "./RecentlyPlayed";

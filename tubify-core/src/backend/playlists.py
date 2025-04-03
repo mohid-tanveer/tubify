@@ -8,6 +8,9 @@ from spotify_auth import get_spotify_client
 import spotipy, os, json, random, string
 import time
 import asyncio
+import httpx
+from urllib.parse import quote_plus
+from youtube import search_youtube_videos, find_and_add_youtube_videos
 
 
 # create router
@@ -264,6 +267,14 @@ async def import_spotify_playlist(playlist_id, sp_playlist, sp):
 
     # finally, add songs to the playlist
     await add_songs_to_playlist(playlist_id, all_playlist_song_ids, track_positions)
+
+    # find and add YouTube videos for each song
+    # doing this in the background to avoid blocking the request
+    asyncio.create_task(
+        find_youtube_videos_for_playlist(playlist_id, all_playlist_song_ids)
+    )
+
+    return True
 
 
 async def extract_tracks_from_spotify_playlist(
@@ -1106,13 +1117,21 @@ async def add_songs(
 ):
     # verify user owns playlist
     existing = await database.fetch_one(
-        "SELECT id FROM playlists WHERE public_id = :public_id AND user_id = :user_id",
-        values={"public_id": public_id, "user_id": user.id},
+        """
+        SELECT id, user_id FROM playlists WHERE public_id = :public_id
+        """,
+        values={"public_id": public_id},
     )
 
     if not existing:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="playlist not found"
+        )
+
+    if existing["user_id"] != user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="you don't have permission to modify this playlist",
         )
 
     playlist_id = existing["id"]
@@ -1134,7 +1153,7 @@ async def add_songs(
     )
     existing_song_ids = {song["id"] for song in existing_songs}
 
-    # track progress
+    # counters for response
     successful_adds = 0
     already_exists = 0
     failed_songs = []
@@ -1439,6 +1458,38 @@ async def add_songs(
 
                 if result is not None:
                     successful_adds += 1
+
+                    # automatically find and add YouTube videos for this song
+                    # get artist names
+                    artists = await database.fetch_all(
+                        """
+                        SELECT a.name
+                        FROM song_artists sa
+                        JOIN artists a ON sa.artist_id = a.id
+                        WHERE sa.song_id = :song_id
+                        ORDER BY sa.list_position
+                        """,
+                        values={"song_id": song.id},
+                    )
+
+                    artist_names = [artist["name"] for artist in artists]
+                    artist_str = " ".join(artist_names[:2])  # use first two artists
+
+                    # check if the song already has YouTube videos
+                    existing_videos = await database.fetch_val(
+                        """
+                        SELECT COUNT(*) FROM song_youtube_videos
+                        WHERE song_id = :song_id
+                        """,
+                        values={"song_id": song.id},
+                    )
+
+                    # if no videos exist, search for and add them
+                    if existing_videos == 0:
+                        # we'll do this in the background without waiting
+                        asyncio.create_task(
+                            find_and_add_youtube_videos(song.id, song.name, artist_str)
+                        )
                 else:
                     already_exists += 1
             except Exception as e:
@@ -1448,17 +1499,12 @@ async def add_songs(
             print(f"Error processing song {song.id}: {str(e)}")
             failed_songs.append({"id": song.id, "error": str(e)})
 
-    # update the updated_at timestamp for the playlist
+    # update playlist updated_at timestamp
     await database.execute(
         """
-        UPDATE playlists
-        SET updated_at = :updated_at
-        WHERE id = :playlist_id
+        UPDATE playlists SET updated_at = NOW() WHERE id = :playlist_id
         """,
-        values={
-            "playlist_id": playlist_id,
-            "updated_at": datetime.now(timezone.utc),
-        },
+        values={"playlist_id": playlist_id},
     )
 
     # return appropriate message based on what happened
@@ -1488,72 +1534,140 @@ async def add_songs(
         return {"message": "No songs were added", "status": "error"}
 
 
-async def insert_artist_if_needed(sp, artist_id):
-    """Helper function to insert an artist if it doesn't exist."""
-    # check if artist exists
-    artist_exists = await database.fetch_one(
-        "SELECT id FROM artists WHERE id = :id",
-        values={"id": artist_id},
-    )
+# helper function to find and add YouTube videos for a song
+async def find_and_add_youtube_videos(song_id: str, song_name: str, artist_str: str):
+    """find and add youtube videos for a song"""
+    try:
+        # clean and format song name for better search
+        song_name_clean = (
+            song_name.replace("(feat.", "").replace("feat.", "").split("(")[0].strip()
+        )
 
-    if not artist_exists:
-        try:
-            # get artist info
-            artist_info = sp.artist(artist_id)
+        # first search for official music video
+        official_query = f"{artist_str} {song_name_clean} official video"
+        official_videos = await search_youtube_videos(official_query, 3)
 
-            image_url = "https://via.placeholder.com/300"
-            if artist_info.get("images") and len(artist_info["images"]) > 0:
-                image_url = artist_info["images"][0]["url"]
+        if not official_videos:
+            # try a simpler search query if the first one fails
+            official_query = f"{artist_str} {song_name_clean}"
+            official_videos = await search_youtube_videos(official_query, 3)
 
-            # insert artist
-            await database.execute(
-                """
-                INSERT INTO artists (id, name, image_url, popularity)
-                VALUES (:id, :name, :image_url, :popularity)
-                ON CONFLICT (id) DO NOTHING
-                """,
-                values={
-                    "id": artist_id,
-                    "name": artist_info["name"],
-                    "image_url": image_url,
-                    "popularity": artist_info.get("popularity", 0),
-                },
+        # apply lighter filtering
+        filtered_official = []
+        if official_videos:
+            # use less strict filtering to ensure we get some results
+            artist_words = set(
+                w.lower() for w in artist_str.lower().split() if len(w) > 2
+            )
+            for v in official_videos:
+                # consider it a match if title contains either:
+                # 1. artist name (or major part of it) AND any significant word from song
+                # 2. exact song name
+                title_lower = v["title"].lower()
+
+                # check if any artist word is in the title
+                artist_match = any(word in title_lower for word in artist_words)
+
+                # check if any significant song word is in the title
+                song_words = set(
+                    w.lower() for w in song_name_clean.lower().split() if len(w) > 2
+                )
+                song_match = any(word in title_lower for word in song_words)
+
+                # check if the full song name is in the title
+                full_song_match = song_name_clean.lower() in title_lower
+
+                if (artist_match and song_match) or full_song_match:
+                    filtered_official.append(v)
+
+        # select the best match from filtered official videos
+        official_video = filtered_official[0] if filtered_official else None
+
+        # try to find live performances
+        live_query = f"{artist_str} {song_name_clean} live"
+        live_videos = await search_youtube_videos(live_query, 5)
+
+        if not live_videos:
+            # if no live performances found, try "live performance"
+            live_query = f"{artist_str} {song_name_clean} live performance"
+            live_videos = await search_youtube_videos(live_query, 5)
+
+        # apply lighter filtering for live videos
+        filtered_live = []
+        if live_videos:
+            artist_words = set(
+                w.lower() for w in artist_str.lower().split() if len(w) > 2
+            )
+            for v in live_videos:
+                title_lower = v["title"].lower()
+
+                # check if any artist word is in the title
+                artist_match = any(word in title_lower for word in artist_words)
+
+                # check if any significant song word is in the title
+                song_words = set(
+                    w.lower() for w in song_name_clean.lower().split() if len(w) > 2
+                )
+                song_match = any(word in title_lower for word in song_words)
+
+                # accept the video if both artist and any song word match
+                if artist_match and song_match:
+                    filtered_live.append(v)
+
+        # if we still don't have any live videos, use the unfiltered results
+        # but limit to 2 results to avoid completely unrelated videos
+        if not filtered_live and live_videos:
+            filtered_live = live_videos[:2]
+
+        # batch insert videos
+        video_data = []
+
+        if official_video:
+            video_data.append(
+                {
+                    "song_id": song_id,
+                    "youtube_video_id": official_video["id"],
+                    "video_type": "official_video",
+                    "title": official_video["title"],
+                    "position": 0,
+                }
             )
 
-            # process genres if any
-            if artist_info.get("genres"):
-                for genre in artist_info["genres"]:
-                    # insert genre if it doesn't exist
-                    await database.execute(
-                        """
-                        INSERT INTO genres (name)
-                        VALUES (:name)
-                        ON CONFLICT (name) DO NOTHING
-                        """,
-                        values={"name": genre},
-                    )
+        # add live performances
+        for i, video in enumerate(filtered_live[:3]):  # limit to top 3
+            # skip if this is the same as the official video
+            if official_video and video["id"] == official_video["id"]:
+                continue
 
-                    # get genre id
-                    genre_id = await database.fetch_val(
-                        "SELECT id FROM genres WHERE name = :name",
-                        values={"name": genre},
-                    )
+            video_data.append(
+                {
+                    "song_id": song_id,
+                    "youtube_video_id": video["id"],
+                    "video_type": "live_performance",
+                    "title": video["title"],
+                    "position": i,
+                }
+            )
 
-                    # link artist to genre
-                    await database.execute(
-                        """
-                        INSERT INTO artist_genres (artist_id, genre_id)
-                        VALUES (:artist_id, :genre_id)
-                        ON CONFLICT (artist_id, genre_id) DO NOTHING
-                        """,
-                        values={"artist_id": artist_id, "genre_id": genre_id},
-                    )
-        except Exception as e:
-            print(f"error inserting artist {artist_id}: {str(e)}")
-            # continue anyway, partial data is better than none
-            return False
+        # if we have video data, insert it
+        if video_data:
+            await database.execute_many(
+                """
+                INSERT INTO song_youtube_videos (
+                    song_id, youtube_video_id, video_type, title, position
+                )
+                VALUES (
+                    :song_id, :youtube_video_id, :video_type, :title, :position
+                )
+                ON CONFLICT (song_id, youtube_video_id) DO NOTHING
+                """,
+                video_data,
+            )
 
-    return True
+        return bool(video_data)
+    except Exception as e:
+        print(f"Error finding videos for {song_name} by {artist_str}: {e}")
+        return False
 
 
 @router.delete("/{public_id}/songs/{song_id}")
@@ -1707,3 +1821,131 @@ async def reorder_songs(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"error reordering songs: {str(e)}",
         )
+
+
+# helper function to find YouTube videos for all songs in a playlist
+async def find_youtube_videos_for_playlist(playlist_id: int, song_ids: List[str]):
+    """Find and add YouTube videos for all songs in a playlist in the background"""
+    try:
+        print(
+            f"Starting YouTube video search for playlist {playlist_id} with {len(song_ids)} songs"
+        )
+
+        # get song details from database
+        for song_id in song_ids:
+            # check if the song already has YouTube videos
+            existing_videos = await database.fetch_val(
+                """
+                SELECT COUNT(*) FROM song_youtube_videos
+                WHERE song_id = :song_id
+                """,
+                values={"song_id": song_id},
+            )
+
+            # skip if videos already exist
+            if existing_videos > 0:
+                continue
+
+            # get song name and artists
+            song_info = await database.fetch_one(
+                """
+                SELECT s.name
+                FROM songs s
+                WHERE s.id = :song_id
+                """,
+                values={"song_id": song_id},
+            )
+
+            if not song_info:
+                continue
+
+            # get artist names
+            artists = await database.fetch_all(
+                """
+                SELECT a.name
+                FROM song_artists sa
+                JOIN artists a ON sa.artist_id = a.id
+                WHERE sa.song_id = :song_id
+                ORDER BY sa.list_position
+                """,
+                values={"song_id": song_id},
+            )
+
+            artist_names = [artist["name"] for artist in artists]
+            artist_str = " ".join(artist_names[:2])  # use first two artists
+
+            # search for videos and add them to the database
+            await find_and_add_youtube_videos(song_id, song_info["name"], artist_str)
+
+            # add a small delay to avoid rate limiting
+            await asyncio.sleep(0.2)
+
+        print(f"Finished YouTube video search for playlist {playlist_id}")
+    except Exception as e:
+        print(f"Error finding YouTube videos for playlist {playlist_id}: {str(e)}")
+
+
+# helper function to search for videos
+async def search_youtube_videos(query: str, max_results: int = 5):
+    """Search for YouTube videos based on query"""
+    YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY")
+    YOUTUBE_API_BASE_URL = "https://www.googleapis.com/youtube/v3"
+
+    if not YOUTUBE_API_KEY:
+        print("YouTube API key not configured")
+        return []
+
+    # encode query for url
+    encoded_query = quote_plus(query)
+
+    # prepare request url
+    url = f"{YOUTUBE_API_BASE_URL}/search?part=snippet&maxResults={max_results}&q={encoded_query}&type=video&key={YOUTUBE_API_KEY}"
+
+    # make request
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(url)
+
+            if response.status_code == 403:
+                print(
+                    f"YouTube API quota exceeded or authentication error: {response.text}"
+                )
+                return []
+
+            if response.status_code != 200:
+                print(f"YouTube API error ({response.status_code}): {response.text}")
+                return []
+
+            data = response.json()
+
+            if "error" in data:
+                print(
+                    f"YouTube API error: {data['error'].get('message', 'Unknown error')}"
+                )
+                return []
+
+            # extract video ids and titles
+            videos = []
+            for item in data.get("items", []):
+                try:
+                    videos.append(
+                        {
+                            "id": item["id"]["videoId"],
+                            "title": item["snippet"]["title"],
+                        }
+                    )
+                except KeyError as e:
+                    print(f"Unexpected item format in YouTube response: {e}")
+                    continue
+
+            print(f"YouTube search for '{query}' returned {len(videos)} results")
+            return videos
+    except httpx.ReadTimeout:
+        print(f"YouTube API request timed out for query: {query}")
+        return []
+    except httpx.ConnectTimeout:
+        print(f"YouTube API connection timed out for query: {query}")
+        return []
+    except Exception as e:
+        print(f"YouTube API error for query '{query}': {str(e)}")
+        return []

@@ -1,11 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, status
-from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-from typing import List, Optional, Dict, Any
+from typing import List, Optional
 from datetime import datetime, timezone, timedelta
 import spotipy
 import asyncio
-import time
 import traceback
 
 from auth import get_current_user, User

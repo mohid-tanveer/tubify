@@ -1,7 +1,7 @@
 import { useNavigate, useLoaderData } from "react-router-dom"
 import { TubifyTitle } from "@/components/ui/tubify-title"
 import { Button } from "@/components/ui/button"
-import { Globe, Lock, Music, ArrowLeft, Trash2, Plus, Loader2 } from "lucide-react"
+import { Globe, Lock, Music, ArrowLeft, Trash2, Plus, Loader2, Play, Shuffle } from "lucide-react"
 import { useState, useEffect } from "react"
 import api from "@/lib/axios"
 import { clearPlaylistsCache, clearPlaylistDetailCache, setPlaylistDetailCache } from "@/loaders/playlist-loaders"
@@ -54,11 +54,36 @@ export default function PlaylistDetail() {
   const [isDeleting, setIsDeleting] = useState(false)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [isAddSongDialogOpen, setIsAddSongDialogOpen] = useState(false)
+  const [hasPlayableVideos, setHasPlayableVideos] = useState(false)
+  const [checkingVideos, setCheckingVideos] = useState(false)
 
   // update local state when initialPlaylist changes
   useEffect(() => {
     setPlaylist(initialPlaylist)
   }, [initialPlaylist])
+  
+  // check if there are playable videos available
+  useEffect(() => {
+    if (!playlist || !playlist.songs || playlist.songs.length === 0) {
+      setHasPlayableVideos(false)
+      return
+    }
+    
+    const checkVideos = async () => {
+      try {
+        setCheckingVideos(true)
+        const response = await api.get(`/api/youtube/playlist/${playlist.public_id}/queue`)
+        setHasPlayableVideos(response.data.queue_items && response.data.queue_items.length > 0)
+      } catch (error) {
+        console.error("Failed to check for playable videos:", error)
+        setHasPlayableVideos(false)
+      } finally {
+        setCheckingVideos(false)
+      }
+    }
+    
+    checkVideos()
+  }, [playlist])
 
   const handleDeletePlaylist = async () => {
     if (!playlist) return
@@ -145,6 +170,16 @@ export default function PlaylistDetail() {
       ...playlist,
       songs: reorderedSongs
     });
+  };
+  
+  const handlePlayVideos = () => {
+    if (!playlist) return;
+    navigate(`/watch/${playlist.public_id}`);
+  };
+  
+  const handleShufflePlay = () => {
+    if (!playlist) return;
+    navigate(`/watch/${playlist.public_id}?queue_type=shuffle`);
   };
 
   if (!playlist) {
@@ -265,6 +300,34 @@ export default function PlaylistDetail() {
                   </div>
                 </DialogContent>
               </Dialog>
+              
+              {playlist.songs && playlist.songs.length > 0 && (
+                <>
+                  <Button 
+                    variant="default" 
+                    size="sm" 
+                    onClick={handlePlayVideos}
+                    disabled={checkingVideos || !hasPlayableVideos}
+                  >
+                    {checkingVideos ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Play className="mr-2 h-4 w-4" />
+                    )}
+                    play videos
+                  </Button>
+                  
+                  <Button 
+                    variant="secondary" 
+                    size="sm" 
+                    onClick={handleShufflePlay}
+                    disabled={checkingVideos || !hasPlayableVideos}
+                  >
+                    <Shuffle className="mr-2 h-4 w-4" />
+                    shuffle
+                  </Button>
+                </>
+              )}
               
               <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                 <DialogTrigger asChild>

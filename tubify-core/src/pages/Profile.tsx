@@ -442,12 +442,6 @@ export default function Profile() {
                 </li>
               ))}
             </ul>
-            <div>
-              <h1>Profile</h1>
-              <Button onClick={() => navigate("/recently-played")}>
-                View Recently Played Tracks
-              </Button>
-            </div>
             <div className="flex items-center gap-2">
               <Input
                 value={searchUsername}
@@ -473,6 +467,9 @@ export default function Profile() {
                   >
                     <Icons.spotify className="mr-2 h-4 w-4" />
                     My Playlists
+                  </Button>
+                  <Button onClick={() => navigate("/recently-played")}>
+                    View Recently Played Tracks
                   </Button>
                   <LikedSongsSync
                     initialStatus={

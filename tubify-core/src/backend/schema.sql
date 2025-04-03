@@ -167,6 +167,15 @@ CREATE TABLE IF NOT EXISTS user_notifications (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS song_youtube_videos (
+    song_id VARCHAR(255) REFERENCES songs(id) ON DELETE CASCADE,
+    youtube_video_id VARCHAR(255) NOT NULL,
+    video_type VARCHAR(50) NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    position INTEGER DEFAULT 0,
+    PRIMARY KEY (song_id, youtube_video_id)
+);
+
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
 CREATE INDEX IF NOT EXISTS idx_users_oauth ON users(oauth_provider, oauth_id);
@@ -210,3 +219,4 @@ CREATE INDEX IF NOT EXISTS idx_artists_name ON artists(name);
 CREATE INDEX IF NOT EXISTS idx_liked_songs_sync_jobs_updated ON liked_songs_sync_jobs(user_id, started_at DESC);
 CREATE INDEX IF NOT EXISTS idx_spotify_credentials_liked_songs ON spotify_credentials(user_id, liked_songs_sync_status, last_liked_songs_sync);
 CREATE INDEX IF NOT EXISTS idx_genres_id_to_name ON genres(id);
+CREATE INDEX IF NOT EXISTS idx_song_youtube_videos_video_type ON song_youtube_videos(video_type);

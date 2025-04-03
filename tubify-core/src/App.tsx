@@ -23,6 +23,7 @@ import {
   UserPlaylists,
   UserPlaylistDetail,
   LikedSongs,
+  PlaylistYouTubeView,
   RecentlyPlayed,
 } from "./pages";
 import { Spinner } from "./components/ui/spinner";
@@ -38,6 +39,7 @@ import {
   profileLoader,
   likedSongsLoader,
   friendLikedSongsLoader,
+  playlistYouTubeQueueLoader,
 } from "./loaders";
 import "./App.css";
 import FriendLikedSongs from "./pages/FriendLikedSongs";
@@ -59,7 +61,7 @@ const spotifyAuthLoader: LoaderFunction = async () => {
   }
 };
 
-// loader function to check auth and spotify status for playlists
+// loader function to check auth and spotify status
 const fullAuthLoader: LoaderFunction = async () => {
   try {
     // check auth status
@@ -153,22 +155,6 @@ const router = createBrowserRouter([
         loader: userPlaylistsLoader,
       },
       {
-        path: "/recently-played",
-        element: (
-          <ProtectedRoute>
-            <RecentlyPlayed />
-          </ProtectedRoute>
-        ),
-        loader: async (args) => {
-          // check authentication and Spotify connection
-          const result = await fullAuthLoader(args);
-          if (result) return result; // redirect if auth or Spotify check fails
-
-          // if checks pass, return null to proceed
-          return null;
-        },
-      },
-      {
         path: "/users/playlists/:id",
         element: <UserPlaylistDetail />,
         loader: userPlaylistDetailLoader,
@@ -206,12 +192,44 @@ const router = createBrowserRouter([
         },
       },
       {
+        path: "/watch/:id",
+        element: (
+          <ProtectedRoute>
+            <PlaylistYouTubeView />
+          </ProtectedRoute>
+        ),
+        loader: async (args) => {
+          // first check auth and spotify status
+          const result = await fullAuthLoader(args);
+          if (result) return result; // if it returns a redirect, pass it through
+
+          // load YouTube queue data
+          return playlistYouTubeQueueLoader(args);
+        },
+      },
+      {
         path: "/search",
         element: (
           <ProtectedRoute>
             <Search />
           </ProtectedRoute>
         ),
+      },
+      {
+        path: "/recently-played",
+        element: (
+          <ProtectedRoute>
+            <RecentlyPlayed />
+          </ProtectedRoute>
+        ),
+        loader: async (args) => {
+          // first check auth and spotify status
+          const result = await fullAuthLoader(args);
+          if (result) return result; // if it returns a redirect, pass it through
+
+          // if auth checks pass, load recently played
+          return likedSongsLoader(args);
+        },
       },
       {
         path: "/liked-songs",
