@@ -272,3 +272,40 @@ async def get_spotify_playlists(
         raise HTTPException(
             status_code=500, detail=f"failed to fetch spotify playlists: {str(e)}"
         )
+
+
+# get user's recently played tracks
+@router.get("/recently-played")
+async def get_recently_played_tracks(
+    limit: int = 50,
+    user: User = Depends(get_current_user),
+    sp: spotipy.Spotify = Depends(get_spotify_client),
+):
+    try:
+        # Call Spotify's Get Recently Played Tracks API
+        response = sp.current_user_recently_played(limit=limit)
+        tracks = response.get("items", [])
+
+        # Format the response to return only relevant data
+        formatted_tracks = [
+            {
+                "track_name": item["track"]["name"],
+                "artist_name": [artist["name"] for artist in item["track"]["artists"]],
+                "album_name": item["track"]["album"]["name"],
+                "played_at": item["played_at"],
+                "spotify_url": item["track"]["external_urls"]["spotify"],
+                "album_art_url": (
+                    item["track"]["album"]["images"][0]["url"]
+                    if item["track"]["album"]["images"]
+                    else None
+                ),
+            }
+            for item in tracks
+        ]
+
+        return {"recently_played": formatted_tracks}
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Failed to fetch recently played tracks: {str(e)}"
+        )

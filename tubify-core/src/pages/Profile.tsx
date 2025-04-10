@@ -458,6 +458,9 @@ export default function Profile() {
                     <Icons.spotify className="mr-2 h-4 w-4" />
                     My Playlists
                   </Button>
+                  <Button onClick={() => navigate("/recently-played")}>
+                    View Recently Played Tracks
+                  </Button>
                   <LikedSongsSync 
                         initialStatus={
                           profile && profile.user_name && likedSongs 

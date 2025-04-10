@@ -1,6 +1,6 @@
 import { RouterProvider, createBrowserRouter, Navigate, useLocation, redirect, LoaderFunction, Outlet } from 'react-router-dom'
 import { useContext, useEffect, useState } from 'react'
-import { Homepage, AuthPage, EmailVerification, ResetPassword, RequestReset, WatchPage, Profile, Search, Playlists, PlaylistDetail, UserProfile, UserPlaylists, UserPlaylistDetail, LikedSongs, PlaylistYouTubeView } from './pages'
+import { Homepage, AuthPage, EmailVerification, ResetPassword, RequestReset, WatchPage, Profile, Search, Playlists, PlaylistDetail, UserProfile, UserPlaylists, UserPlaylistDetail, LikedSongs, FriendLikedSongs, PlaylistYouTubeView, RecentlyPlayed } from './pages'
 import { Spinner } from './components/ui/spinner'
 import { AuthContext } from './contexts/auth'
 import { Toaster } from "@/components/ui/sonner"
@@ -17,7 +17,6 @@ import {
   playlistYouTubeQueueLoader
 } from './loaders'
 import './App.css'
-import FriendLikedSongs from './pages/FriendLikedSongs'
 
 interface User {
   id: number
@@ -157,6 +156,22 @@ const router = createBrowserRouter([
       {
         path: "/search",
         element: <ProtectedRoute><Search /></ProtectedRoute>,
+      },
+      {
+        path: "/recently-played",
+        element: (
+          <ProtectedRoute>
+            <RecentlyPlayed />
+          </ProtectedRoute>
+        ),
+        loader: async (args) => {
+          // first check auth and spotify status
+          const result = await fullAuthLoader(args);
+          if (result) return result; // if it returns a redirect, pass it through
+
+          // if auth checks pass, load recently played
+          return likedSongsLoader(args);
+        },
       },
       {
         path: "/liked-songs",
