@@ -501,8 +501,6 @@ export default function Profile() {
                   Connect Spotify to Create Playlists
                 </Button>
               )}
-
-              
             </div>
           </div>
         </div>
