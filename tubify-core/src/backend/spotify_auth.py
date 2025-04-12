@@ -282,11 +282,11 @@ async def get_recently_played_tracks(
     sp: spotipy.Spotify = Depends(get_spotify_client),
 ):
     try:
-        # Call Spotify's Get Recently Played Tracks API
+        # call Spotify's Get Recently Played Tracks API
         response = sp.current_user_recently_played(limit=limit)
         tracks = response.get("items", [])
 
-        # Format the response to return only relevant data
+        # format the response to return only relevant data
         formatted_tracks = [
             {
                 "track_name": item["track"]["name"],

@@ -7,9 +7,18 @@ import os
 import httpx
 from urllib.parse import quote_plus
 import asyncio
+import html
 
 # create router
 router = APIRouter(prefix="/api/youtube", tags=["youtube"])
+
+
+# helper function to decode html entities in video titles
+def decode_video_title(title: str) -> str:
+    """decode html entities in video titles"""
+    if not title:
+        return ""
+    return html.unescape(title)
 
 
 # models
@@ -89,10 +98,14 @@ async def search_youtube_videos(query: str, max_results: int = 5):
             videos = []
             for item in data.get("items", []):
                 try:
+                    video_title = item["snippet"]["title"]
+                    # decode html entities in title
+                    decoded_title = decode_video_title(video_title)
+
                     videos.append(
                         {
                             "id": item["id"]["videoId"],
-                            "title": item["snippet"]["title"],
+                            "title": decoded_title,
                         }
                     )
                 except KeyError as e:
@@ -308,6 +321,9 @@ async def add_video_to_song(
             values={"song_id": song_id},
         )
 
+    # decode any html entities in video title
+    decoded_title = decode_video_title(video.title)
+
     # add video to database
     await database.execute(
         """
@@ -327,7 +343,7 @@ async def add_video_to_song(
             "song_id": song_id,
             "youtube_video_id": video.id,
             "video_type": video_type,
-            "title": video.title,
+            "title": decoded_title,
             "position": position,
         },
     )
@@ -597,6 +613,7 @@ async def find_and_add_youtube_videos(song_id: str, song_name: str, artist_str: 
         video_data = []
 
         if official_video:
+            # titles are already decoded in search_youtube_videos
             video_data.append(
                 {
                     "song_id": song_id,
@@ -613,6 +630,7 @@ async def find_and_add_youtube_videos(song_id: str, song_name: str, artist_str: 
             if official_video and video["id"] == official_video["id"]:
                 continue
 
+            # titles are already decoded in search_youtube_videos
             video_data.append(
                 {
                     "song_id": song_id,
