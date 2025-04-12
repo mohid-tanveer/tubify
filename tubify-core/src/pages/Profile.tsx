@@ -288,10 +288,10 @@ export default function Profile() {
       <div className="absolute top-0 left-0">
         <TubifyTitle />
       </div>
-      <div className="flex-1 flex flex-col items-center justify-center gap-4">
-        <div className="flex flex-row gap-8 w-full max-w-6xl px-4">
-          {/* left column for profile information */}
-          <div className="flex flex-col items-center gap-4 w-1/3 bg-neutral-700 border border-neutral-600 rounded-lg p-6 relative">
+      <div className="flex-1 flex flex-col items-center justify-center gap-4 p-4 mt-16 sm:mt-0">
+        <div className="flex flex-col sm:flex-row gap-8 w-full max-w-6xl px-4">
+          {/* Profile section - full width on mobile, 1/3 on desktop */}
+          <div className="flex flex-col items-center gap-4 w-full sm:w-1/3 bg-neutral-700 border border-neutral-600 rounded-lg p-6 relative h-fit sm:self-center">
             <Button
               onClick={handleEdit}
               variant="ghost"
@@ -338,7 +338,7 @@ export default function Profile() {
                         onChange={(e) =>
                           setEditForm({ ...editForm, bio: e.target.value })
                         }
-                        className="bg-white/10 border-white/20 text-white min-h-[100px]"
+                        className="bg-white/10 border-white/20 text-white min-h-[100px] break-all overflow-hidden"
                         placeholder="Tell us about yourself"
                         maxLength={500}
                       />
@@ -368,17 +368,28 @@ export default function Profile() {
                 </div>
               </>
             ) : (
-              <>
-                <h2 className="text-white text-2xl">{profile.user_name}</h2>
-                <p className="text-white text-center">{profile.bio || "No bio yet"}</p>
-              </>
+              <div className="flex flex-col items-center w-full">
+                <div className="flex flex-col items-center flex-grow mb-8">
+                  <h2 className="text-white text-2xl mb-4">{profile.user_name}</h2>
+                  <p className="text-white text-center break-all whitespace-pre-wrap max-w-full overflow-hidden">
+                    {profile.bio || "No bio yet"}
+                  </p>
+                </div>
+                <Button
+                  onClick={handleLogout}
+                  variant="destructive"
+                  className="w-full sm:w-auto px-8"
+                >
+                  Sign out
+                </Button>
+              </div>
             )}
           </div>
 
-          {/* right column for friends and other content */}
-          <div className="flex flex-col items-center gap-4 w-2/3 bg-neutral-700 border border-neutral-600 rounded-lg p-6">
+          {/* Friends section - full width on mobile, 2/3 on desktop */}
+          <div className="flex flex-col items-center gap-4 w-full sm:w-2/3 bg-neutral-700 border border-neutral-600 rounded-lg p-6">
             <h2 className="text-white text-xl">Friends</h2>
-            <ul className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 w-full">
+            <ul className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4 w-full">
               {localFriends.map((friend) => (
                 <li key={friend.id} className="flex flex-col items-center gap-3 bg-slate-700 border border-neutral-600 rounded-lg hover:bg-slate-800 p-4 transition-[color,box-shadow,background-color,border-color] duration-200">
                   <div 
@@ -498,14 +509,6 @@ export default function Profile() {
             </div>
           </div>
         </div>
-        
-        <Button
-          onClick={handleLogout}
-          variant="destructive"
-          className="w-auto px-8"
-        >
-          Sign out
-        </Button>
       </div>
     </div>
   )
