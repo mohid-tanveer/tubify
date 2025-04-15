@@ -98,6 +98,33 @@ CREATE TABLE IF NOT EXISTS songs (
     disc_number INTEGER NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS song_audio_features (
+    song_id VARCHAR(255) REFERENCES songs(id) ON DELETE CASCADE PRIMARY KEY,
+    mfcc JSONB NOT NULL,
+    chroma JSONB NOT NULL,
+    spectral_contrast JSONB NOT NULL,
+    tempo FLOAT,
+    acousticness FLOAT,
+    danceability FLOAT,
+    energy FLOAT,
+    loudness FLOAT,
+    liveness FLOAT,
+    valence FLOAT,
+    speechiness FLOAT,
+    instrumentalness FLOAT,
+    mode INTEGER,
+    key INTEGER,
+    feature_vector FLOAT[] NOT NULL,
+    processed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS song_lyrics (
+    song_id VARCHAR(255) REFERENCES songs(id) ON DELETE CASCADE PRIMARY KEY,
+    lyrics TEXT NOT NULL,
+    lyrics_embedding FLOAT[] NOT NULL,
+    processed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS genres (
     id SERIAL PRIMARY KEY,
     name VARCHAR(255) UNIQUE NOT NULL
@@ -220,3 +247,5 @@ CREATE INDEX IF NOT EXISTS idx_liked_songs_sync_jobs_updated ON liked_songs_sync
 CREATE INDEX IF NOT EXISTS idx_spotify_credentials_liked_songs ON spotify_credentials(user_id, liked_songs_sync_status, last_liked_songs_sync);
 CREATE INDEX IF NOT EXISTS idx_genres_id_to_name ON genres(id);
 CREATE INDEX IF NOT EXISTS idx_song_youtube_videos_video_type ON song_youtube_videos(video_type);
+CREATE INDEX IF NOT EXISTS idx_song_audio_features_song_id ON song_audio_features(song_id);
+CREATE INDEX IF NOT EXISTS idx_song_lyrics_song_id ON song_lyrics(song_id);

@@ -1,6 +1,6 @@
 import { RouterProvider, createBrowserRouter, Navigate, useLocation, redirect, LoaderFunction, Outlet } from 'react-router-dom'
 import { useContext, useEffect, useState } from 'react'
-import { Homepage, AuthPage, EmailVerification, ResetPassword, RequestReset, WatchPage, Profile, Search, Playlists, PlaylistDetail, UserProfile, UserPlaylists, UserPlaylistDetail, LikedSongs, FriendLikedSongs, PlaylistYouTubeView, RecentlyPlayed } from './pages'
+import { Homepage, AuthPage, EmailVerification, ResetPassword, RequestReset, WatchPage, Profile, Search, Playlists, PlaylistDetail, UserProfile, UserPlaylists, UserPlaylistDetail, LikedSongs, FriendLikedSongs, PlaylistYouTubeView, RecentlyPlayed, Recommendations } from './pages'
 import { Spinner } from './components/ui/spinner'
 import { AuthContext } from './contexts/auth'
 import { Toaster } from "@/components/ui/sonner"
@@ -14,7 +14,8 @@ import {
   profileLoader,
   likedSongsLoader,
   friendLikedSongsLoader,
-  playlistYouTubeQueueLoader
+  playlistYouTubeQueueLoader,
+  recommendationsLoader
 } from './loaders'
 import './App.css'
 
@@ -183,6 +184,18 @@ const router = createBrowserRouter([
           
           // if auth checks pass, load liked songs
           return likedSongsLoader(args)
+        },
+      },
+      {
+        path: "/recommendations",
+        element: <ProtectedRoute><Recommendations /></ProtectedRoute>,
+        loader: async (args) => {
+          // first check auth and spotify status
+          const result = await fullAuthLoader(args)
+          if (result) return result // if it returns a redirect, pass it through
+          
+          // load recommendations
+          return recommendationsLoader()
         },
       },
       {

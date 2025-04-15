@@ -134,6 +134,12 @@ export default function Homepage() {
             >
               <Link to="/watch">Watch</Link>
             </Button>
+            <Button
+              asChild
+              className="bg-black hover:bg-neutral-900 border-slate-800 hover:border-slate-600 hover:text-slate-300 text-white"
+            >
+              <Link to="/recommendations">Recommendations</Link>
+            </Button>
           </div>
         </div>
       </div>  

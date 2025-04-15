@@ -324,3 +324,36 @@ export async function playlistDetailLoader({ params }: LoaderFunctionArgs) {
     }
   }
 }
+
+export async function recommendationsLoader() {
+  try {
+    // fetch hybrid recommendations
+    const hybridResponse = await api.get("/api/recommendations")
+
+    // fetch friends recommendations
+    const friendsResponse = await api.get("/api/recommendations/friends")
+
+    // fetch similar recommendations
+    const similarResponse = await api.get("/api/recommendations/similar")
+
+    // fetch lyrical recommendations
+    const lyricalResponse = await api.get("/api/recommendations/lyrical")
+
+    return {
+      hybrid: hybridResponse.data.recommendations.hybrid || [],
+      friends: friendsResponse.data.recommendations || [],
+      similar: similarResponse.data.recommendations || [],
+      lyrical: lyricalResponse.data.recommendations || [],
+    }
+  } catch (error) {
+    console.error("Error loading recommendations:", error)
+    // Return empty arrays on error to prevent the UI from breaking
+    return {
+      hybrid: [],
+      friends: [],
+      similar: [],
+      lyrical: [],
+      error: "Failed to load recommendations",
+    }
+  }
+}

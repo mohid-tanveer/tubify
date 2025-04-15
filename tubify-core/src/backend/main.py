@@ -1,16 +1,17 @@
 from fastapi import FastAPI
 from dotenv import load_dotenv
-import os, ssl, httpx, uvicorn
+import os, ssl, uvicorn
 from fastapi.middleware.cors import CORSMiddleware
 from auth import router as auth_router
+from users import router as users_router
 from spotify_auth import router as spotify_router
-from playlists import router as playlist_router
+from playlists import router as playlists_router
 from profile import router as profile_router
 from songs import router as songs_router
-from users import router as users_router
 from search import router as search_router
 from liked_songs import router as liked_songs_router
 from youtube import router as youtube_router
+from recommendations import router as recommendations_router
 from database import lifespan
 
 # load environment variables
@@ -49,14 +50,17 @@ context.load_cert_chain(os.getenv("CERT_FILE"), os.getenv("KEY_FILE"))
 
 # add routers
 app.include_router(auth_router)
+app.include_router(users_router)
 app.include_router(spotify_router)
-app.include_router(playlist_router)
+app.include_router(playlists_router)
 app.include_router(profile_router)
 app.include_router(songs_router)
-app.include_router(users_router)
 app.include_router(search_router)
 app.include_router(liked_songs_router)
 app.include_router(youtube_router)
+app.include_router(recommendations_router)
+
+
 if __name__ == "__main__":
     uvicorn.run(
         app,
