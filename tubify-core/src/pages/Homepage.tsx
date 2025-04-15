@@ -79,7 +79,7 @@ export default function Homepage() {
           </div>
 
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 pb-8">
-            {/* Profile Card */}
+            {/* profile Card */}
             <div 
               className="flex h-full cursor-pointer flex-col items-center justify-center rounded-lg border border-slate-700 bg-slate-900/50 p-6 text-center transition-colors hover:border-slate-500 hover:bg-slate-900"
               onClick={() => navigate("/profile")}
@@ -88,7 +88,7 @@ export default function Homepage() {
               <p className="mt-1 text-sm text-slate-400">View and edit your profile</p>
             </div>
 
-            {/* Search Card */}
+            {/* search Card */}
             <div 
               className="flex h-full cursor-pointer flex-col items-center justify-center rounded-lg border border-slate-700 bg-slate-900/50 p-6 text-center transition-colors hover:border-slate-500 hover:bg-slate-900"
               onClick={() => navigate("/search")}
@@ -97,7 +97,7 @@ export default function Homepage() {
               <p className="mt-1 text-sm text-slate-400">Find users and playlists</p>
             </div>
 
-            {/* Playlists Card */}
+            {/* playlists Card */}
             {isSpotifyConnected ? (
               <div 
                 className="flex h-full cursor-pointer flex-col items-center justify-center rounded-lg border border-slate-700 bg-slate-900/50 p-6 text-center transition-colors hover:border-slate-500 hover:bg-slate-900"
@@ -118,7 +118,7 @@ export default function Homepage() {
               </div>
             )}
 
-            {/* Recommendations Card */}
+            {/* recommendations Card */}
             {isSpotifyConnected && (
               <div 
                 className="flex h-full cursor-pointer flex-col items-center justify-center rounded-lg border border-slate-700 bg-slate-900/50 p-6 text-center transition-colors hover:border-slate-500 hover:bg-slate-900"
@@ -131,7 +131,7 @@ export default function Homepage() {
               </div>
             )}
 
-            {/* Spotify Connection Card */}
+            {/* spotify connection Card */}
             <div 
               className="flex h-full cursor-pointer flex-col items-center justify-center rounded-lg border border-slate-700 bg-slate-900/50 p-6 text-center transition-colors hover:border-slate-500 hover:bg-slate-900"
               onClick={isSpotifyConnected ? handleSpotifyDisconnect : handleSpotifyConnect}

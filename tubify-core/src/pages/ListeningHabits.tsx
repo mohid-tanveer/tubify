@@ -124,10 +124,10 @@ export default function ListeningHabits() {
   const initialData = useLoaderData() as ListeningHabitsData;
   const navigate = useNavigate();
 
-  // Retrieve cache from localStorage or initialize with initial data
+  // retrieve cache from localStorage or initialize with initial data
   const [cachedData, setCachedData] = useState<Record<string, ListeningHabitsData>>(() => {
     try {
-      // Get cache timestamp and check validity
+      // get cache timestamp and check validity
       const cacheTimestamp = localStorage.getItem(STORAGE_CACHE_TIMESTAMP_KEY);
       if (cacheTimestamp && (Date.now() - parseInt(cacheTimestamp, 10)) < CLIENT_CACHE_TTL) {
         const storedCache = localStorage.getItem(STORAGE_CACHE_KEY);
@@ -139,7 +139,7 @@ export default function ListeningHabits() {
       console.error("Error loading cache from localStorage:", e);
     }
     
-    // Default to initial data only if localStorage cache is invalid or missing
+    // default to initial data only if localStorage cache is invalid or missing
     return {
       [createCacheKey('default', 'default')]: initialData
     };
@@ -153,7 +153,7 @@ export default function ListeningHabits() {
   const [genresTimeRange, setGenresTimeRange] = useState("medium_term");
   const [trendsTimeRange, setTrendsTimeRange] = useState("month");
 
-  // Persist cache to localStorage when it changes
+  // persist cache to localStorage when it changes
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_CACHE_KEY, JSON.stringify(cachedData));
