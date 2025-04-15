@@ -182,3 +182,4 @@ cython_debug/
 
 # scripts
 tubify-core/src/backend/scripts/songs
+tubify-core/src/backend/scripts/.scriptsvenv
