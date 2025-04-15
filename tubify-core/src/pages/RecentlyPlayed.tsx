@@ -11,17 +11,17 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 
-// Improved truncated text component
+// improved truncated text component
 function TruncatedText({ text, className }: { text: string, className?: string }) {
   const ref = useRef<HTMLSpanElement>(null)
   const [isTruncated, setIsTruncated] = useState(false)
   
-  // Check if element is truncated
+  // check if element is truncated
   const checkTruncation = useCallback(() => {
     const element = ref.current
     if (!element) return
     
-    // Reset before checking to get accurate measurements
+    // reset before checking to get accurate measurements
     element.style.textOverflow = 'clip'
     const isOverflowing = element.scrollWidth > element.clientWidth
     element.style.textOverflow = 'ellipsis'
@@ -32,7 +32,7 @@ function TruncatedText({ text, className }: { text: string, className?: string }
   useEffect(() => {
     checkTruncation()
 
-    // Create resize observer to check again when dimensions change
+    // create resize observer to check again when dimensions change
     const resizeObserver = new ResizeObserver(() => {
       checkTruncation()
     })
@@ -41,7 +41,7 @@ function TruncatedText({ text, className }: { text: string, className?: string }
       resizeObserver.observe(ref.current)
     }
 
-    // Check again after a slight delay to ensure fonts are loaded
+    // check again after a slight delay to ensure fonts are loaded
     const timeoutId = setTimeout(checkTruncation, 500)
 
     return () => {
@@ -50,7 +50,7 @@ function TruncatedText({ text, className }: { text: string, className?: string }
     }
   }, [text, checkTruncation])
 
-  // Always use tooltip but make it empty when not truncated
+  // always use tooltip but make it empty when not truncated
   return (
     <TooltipProvider>
       <Tooltip>

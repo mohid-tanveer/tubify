@@ -37,7 +37,7 @@ if not GENIUS_TOKEN:
     exit(1)
 
 # model name for sentence embeddings
-MODEL_NAME = "all-MiniLM-L6-v2"  # lightweight model, good balance of speed vs quality
+MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"  # lightweight model, good balance of speed vs quality
 
 # hardware acceleration settings
 # determine optimal number of workers based on CPU count
@@ -134,10 +134,8 @@ def get_lyrics_from_genius(song_name: str, artist_name: str) -> Optional[str]:
     """fetch lyrics for a song from genius"""
     with genius_semaphore:
         try:
-            # Enforce delay between API requests to avoid rate limiting
             time.sleep(GENIUS_REQUEST_DELAY)
 
-            # Clean song title to improve search results
             cleaned_song_name = clean_song_title(song_name)
 
             genius = lyricsgenius.Genius(GENIUS_TOKEN, sleep_time=5)
@@ -145,7 +143,6 @@ def get_lyrics_from_genius(song_name: str, artist_name: str) -> Optional[str]:
             genius.verbose = False
             genius.remove_section_headers = True
 
-            # Search with cleaned song name first
             with print_lock:
                 logger.info(f"searching for: {cleaned_song_name} by {artist_name}")
 
@@ -154,16 +151,11 @@ def get_lyrics_from_genius(song_name: str, artist_name: str) -> Optional[str]:
             if song:
                 lyrics = clean_lyrics(song.lyrics)
                 return lyrics
-
-            # If the cleaned name doesn't match but original had extra info, try both
             if cleaned_song_name != song_name:
-                # Try again with original title as a fallback
                 with print_lock:
                     logger.info(
                         f"trying with original title: {song_name} by {artist_name}"
                     )
-
-                # Add delay before second attempt
                 time.sleep(GENIUS_REQUEST_DELAY)
                 song = genius.search_song(song_name, artist_name)
 
@@ -177,7 +169,6 @@ def get_lyrics_from_genius(song_name: str, artist_name: str) -> Optional[str]:
                 logger.error(
                     f"error fetching lyrics for {song_name} by {artist_name}: {e}"
                 )
-            # Add extra delay after error to help with rate limiting
             time.sleep(GENIUS_REQUEST_DELAY * 2)
             return None
 
@@ -330,7 +321,6 @@ def process_song_lyrics(
         with print_lock:
             logger.info(f"trying without artist name for: {song_name}")
 
-        # Add delay before retry
         time.sleep(GENIUS_REQUEST_DELAY)
         lyrics = get_lyrics_from_genius(song_name, "")
 
@@ -341,7 +331,6 @@ def process_song_lyrics(
             with print_lock:
                 logger.info(f"trying with simplified song name: {cleaned_song_name}")
 
-            # Add delay before retry
             time.sleep(GENIUS_REQUEST_DELAY)
             lyrics = get_lyrics_from_genius(cleaned_song_name, primary_artist)
 
@@ -425,7 +414,13 @@ async def main() -> None:
 
     # initialize sentence transformer model
     logger.info(f"loading model: {MODEL_NAME}")
-    model = SentenceTransformer(MODEL_NAME, device=DEVICE)
+    try:
+        model = SentenceTransformer(MODEL_NAME, device=DEVICE)
+    except ValueError as e:
+        logger.warning(f"Error loading model with specific name: {e}")
+        logger.info("Falling back to default model path")
+        # try with just the model name without the organization prefix
+        model = SentenceTransformer("all-MiniLM-L6-v2", device=DEVICE)
 
     # initialize database connection
     database = Database(os.getenv("DATABASE_URL"))

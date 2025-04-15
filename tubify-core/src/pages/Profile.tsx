@@ -290,7 +290,7 @@ export default function Profile() {
       </div>
       <div className="flex-1 flex flex-col items-center justify-center gap-4 p-4 mt-16 sm:mt-0">
         <div className="flex flex-col sm:flex-row gap-8 w-full max-w-6xl px-4">
-          {/* Profile section - full width on mobile, 1/3 on desktop */}
+          {/* profile section - full width on mobile, 1/3 on desktop */}
           <div className="flex flex-col items-center gap-4 w-full sm:w-1/3 bg-neutral-700 border border-neutral-600 rounded-lg p-6 relative h-fit sm:self-center">
             <Button
               onClick={handleEdit}
@@ -386,7 +386,7 @@ export default function Profile() {
             )}
           </div>
 
-          {/* Friends section - full width on mobile, 2/3 on desktop */}
+          {/* friends section - full width on mobile, 2/3 on desktop */}
           <div className="flex flex-col items-center gap-4 w-full sm:w-2/3 bg-neutral-700 border border-neutral-600 rounded-lg p-6">
             <h2 className="text-white text-xl">Friends</h2>
             <ul className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4 w-full">

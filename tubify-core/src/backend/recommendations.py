@@ -5,6 +5,8 @@ import logging
 from sklearn.metrics.pairwise import cosine_similarity
 from fastapi import APIRouter, Depends, HTTPException, Request
 from database import database
+import os
+import time
 
 # set up logging
 logging.basicConfig(
@@ -154,7 +156,7 @@ async def get_song_details(song_ids: List[str]) -> List[Dict[str, Any]]:
     try:
         rows = await database.fetch_all(
             """
-            SELECT s.id, s.name, s.spotify_uri, s.spotify_url, s.popularity,
+            SELECT s.id, s.name, s.spotify_uri, s.spotify_url, s.popularity, s.duration_ms,
                    a.name as album_name, a.image_url as album_image_url,
                    string_agg(ar.name, ', ') as artist_names
             FROM songs s
@@ -184,7 +186,7 @@ async def get_user_audio_profile(user_id: int) -> Dict[str, float]:
     if not features:
         return {}
 
-    # Calculate average values for each audio feature
+    # calculate average values for each audio feature
     profile = {
         "tempo": 0.0,
         "acousticness": 0.0,
@@ -197,7 +199,7 @@ async def get_user_audio_profile(user_id: int) -> Dict[str, float]:
         "instrumentalness": 0.0,
     }
 
-    # For mode and key, we'll track counts to find the most common values
+    # for mode and key, we'll track counts to find the most common values
     mode_counts = {0: 0, 1: 0}  # 0=minor, 1=major
     key_counts = {i: 0 for i in range(12)}  # 0-11 for musical keys
 
@@ -207,7 +209,7 @@ async def get_user_audio_profile(user_id: int) -> Dict[str, float]:
             if feature in song_features:
                 profile[feature] += song_features[feature]
 
-        # Count occurrences of mode and key
+        # count occurrences of mode and key
         if "mode" in song_features:
             mode_counts[song_features["mode"]] += 1
 
@@ -216,12 +218,12 @@ async def get_user_audio_profile(user_id: int) -> Dict[str, float]:
 
         song_count += 1
 
-    # Calculate averages
+    # calculate averages
     if song_count > 0:
         for feature in profile:
             profile[feature] /= song_count
 
-    # Find most common mode and key
+    # find most common mode and key
     if mode_counts:
         profile["mode"] = max(mode_counts, key=mode_counts.get)
 
@@ -241,7 +243,7 @@ async def get_user_average_feature_vector(user_id: int) -> Optional[np.ndarray]:
     if not features:
         return None
 
-    # Calculate average feature vector
+    # calculate average feature vector
     vectors = [
         np.array(feature["feature_vector"])
         for feature in features.values()
@@ -263,7 +265,7 @@ async def get_user_average_lyrics_embedding(user_id: int) -> Optional[np.ndarray
     if not lyrics_embeddings:
         return None
 
-    # Calculate average embedding vector
+    # calculate average embedding vector
     vectors = [np.array(embedding) for embedding in lyrics_embeddings.values()]
     if not vectors:
         return None
@@ -316,7 +318,7 @@ async def find_similar_songs(
             # 2. calculate similarity for high-level audio features
             feature_similarity = 0.0
 
-            # Compare each audio feature with different weights
+            # compare each audio feature with different weights
             features = {
                 "tempo": {"weight": 0.05, "value": row["tempo"]},
                 "acousticness": {"weight": 0.1, "value": row["acousticness"]},
@@ -329,34 +331,34 @@ async def find_similar_songs(
                 "instrumentalness": {"weight": 0.05, "value": row["instrumentalness"]},
             }
 
-            # Add special handling for mode and key (categorical features)
-            # Reward exact matches in mode (major/minor) and key
+            # add special handling for mode and key (categorical features)
+            # reward exact matches in mode (major/minor) and key
             mode_match = 1.0 if user_profile.get("mode") == row["mode"] else 0.0
             key_match = 1.0 if user_profile.get("key") == row["key"] else 0.0
 
-            # Calculate feature similarity
+            # calculate feature similarity
             for feature, data in features.items():
                 if feature in user_profile:
-                    # Calculate difference, normalized by feature range
-                    # For most features (0-1 range), just use absolute difference
+                    # calculate difference, normalized by feature range
+                    # for most features (0-1 range), just use absolute difference
                     if feature == "loudness":
-                        # Loudness is usually in range -60 to 0, normalize
+                        # loudness is usually in range -60 to 0, normalize
                         diff = abs(data["value"] - user_profile[feature]) / 60.0
                     elif feature == "tempo":
-                        # Tempo can vary widely, normalize more gently
-                        # Consider tempos "similar" if within 20 BPM
+                        # tempo can vary widely, normalize more gently
+                        # consider tempos "similar" if within 20 BPM
                         diff = min(
                             1.0, abs(data["value"] - user_profile[feature]) / 20.0
                         )
                     else:
-                        # All other features are in 0-1 range
+                        # all other features are in 0-1 range
                         diff = abs(data["value"] - user_profile[feature])
 
-                    # Convert difference to similarity (1.0 - diff)
+                    # convert difference to similarity (1.0 - diff)
                     sim = 1.0 - diff
                     feature_similarity += sim * data["weight"]
 
-            # Add mode and key contribution
+            # add mode and key contribution
             feature_similarity += mode_match * 0.1  # 10% weight for mode
             feature_similarity += key_match * 0.1  # 10% weight for key
 
@@ -368,7 +370,7 @@ async def find_similar_songs(
                     user_lyrics_embedding.reshape(1, -1), lyrics_vector.reshape(1, -1)
                 )[0][0]
 
-            # Combine similarities:
+            # combine similarities:
             # 50% weight to audio feature vector
             # 30% weight to audio profile features
             # 20% weight to lyrics similarity (if available)
@@ -509,6 +511,7 @@ async def get_friend_recommendation_details(
                 s.spotify_uri, 
                 s.spotify_url, 
                 s.popularity,
+                s.duration_ms,
                 a.name as album_name, 
                 a.image_url as album_image_url,
                 string_agg(DISTINCT ar.name, ', ') as artist_names,
@@ -540,78 +543,128 @@ async def get_friend_recommendation_details(
         return []
 
 
-async def get_lyrical_recommendations(
-    user_id: int, limit: int = 20
-) -> List[Dict[str, Any]]:
-    """get recommendations based purely on lyrical content similarity"""
-    # get songs the user has already liked
-    user_liked_songs = await get_user_liked_songs(user_id)
-
-    # get user's average lyrics embedding
-    user_lyrics_embedding = await get_user_average_lyrics_embedding(user_id)
-
-    if user_lyrics_embedding is None:
-        return []
-
-    try:
-        # get all song ids with lyrics embeddings (excluding liked songs)
-        query = """
-        SELECT song_id, lyrics_embedding
-        FROM song_lyrics
-        WHERE array_length(lyrics_embedding, 1) > 0
-        """
-
-        params = {}
-        if user_liked_songs:
-            query += " AND song_id != ALL(:exclude_songs)"
-            params["exclude_songs"] = user_liked_songs
-
-        rows = await database.fetch_all(query, params)
-
-        # calculate similarity with user's average lyrics embedding
-        similarities = []
-        for row in rows:
-            song_id = row["song_id"]
-            lyrics_vector = np.array(row["lyrics_embedding"])
-
-            similarity = cosine_similarity(
-                user_lyrics_embedding.reshape(1, -1), lyrics_vector.reshape(1, -1)
-            )[0][0]
-
-            similarities.append((song_id, similarity))
-
-        # sort by similarity score (highest first)
-        similarities.sort(key=lambda x: x[1], reverse=True)
-        top_similar = similarities[:limit]
-
-        # get song details
-        song_ids = [song_id for song_id, _ in top_similar]
-        song_details = await get_song_details(song_ids)
-
-        # add similarity scores to results
-        similarity_dict = dict(top_similar)
-        for song in song_details:
-            song_id = song["id"]
-            song["lyrics_similarity"] = similarity_dict.get(song_id, 0)
-
-        return song_details
-    except Exception as e:
-        logger.error(f"error generating lyrical recommendations: {e}")
-        return []
-
-
 async def get_api_recommendation_response(
     user_id: int, limit: int = 20
 ) -> Dict[str, Any]:
     """generate API response with recommendations"""
+    is_dev_mode = (
+        os.getenv("ENVIRONMENT", "").lower() == "development"
+        or os.getenv("DEBUG", "").lower() == "true"
+    )
+
+    start_time = time.time() if is_dev_mode else None
+
     # get hybrid recommendations
+    if is_dev_mode:
+        logger.info(f"Generating hybrid recommendations for user_id={user_id}")
+
     recommendations = await generate_recommendations(user_id, limit)
 
+    if is_dev_mode:
+        logger.info(
+            f"Received {len(recommendations)} hybrid recommendations in {time.time() - start_time:.2f}s"
+        )
+        for i, rec in enumerate(recommendations[:5]):
+            sources = rec.get("recommendation_sources", [])
+            source_str = ", ".join(sources) if sources else "unknown"
+            logger.info(
+                f"  Hybrid rec {i+1}: {rec['name']} by {rec['artist_names']} (sources: {source_str})"
+            )
+        if len(recommendations) > 5:
+            logger.info(f"  ... and {len(recommendations) - 5} more")
+
     # get friend-specific recommendations with details
+    if is_dev_mode:
+        friend_time = time.time()
+        logger.info(f"Generating friend recommendations for user_id={user_id}")
+
     friend_recommendations = await get_friend_recommendation_details(user_id, limit)
 
+    if is_dev_mode:
+        logger.info(
+            f"Received {len(friend_recommendations)} friend recommendations in {time.time() - friend_time:.2f}s"
+        )
+        for i, rec in enumerate(friend_recommendations[:5]):
+            friend_count = rec.get("friend_count", 0)
+            logger.info(
+                f"  Friend rec {i+1}: {rec['name']} by {rec['artist_names']} (liked by {friend_count} friends)"
+            )
+        if len(friend_recommendations) > 5:
+            logger.info(f"  ... and {len(friend_recommendations) - 5} more")
+
     # get lyrical recommendations (if lyrics data is available)
-    lyrical_recommendations = await get_lyrical_recommendations(user_id, limit)
+    user_liked_songs = await get_user_liked_songs(user_id)
+    user_lyrics_embedding = await get_user_average_lyrics_embedding(user_id)
+
+    if is_dev_mode:
+        lyrical_time = time.time()
+        logger.info(f"Generating lyrical recommendations for user_id={user_id}")
+
+    lyrical_recommendations = []
+    if user_lyrics_embedding is not None:
+        try:
+            # get all song ids with lyrics embeddings (excluding liked songs)
+            query = """
+            SELECT song_id, lyrics_embedding
+            FROM song_lyrics
+            WHERE array_length(lyrics_embedding, 1) > 0
+            """
+
+            params = {}
+            if user_liked_songs:
+                query += " AND song_id != ALL(:exclude_songs)"
+                params["exclude_songs"] = user_liked_songs
+
+            rows = await database.fetch_all(query, params)
+
+            # calculate similarity with user's average lyrics embedding
+            similarities = []
+            for row in rows:
+                song_id = row["song_id"]
+                lyrics_vector = np.array(row["lyrics_embedding"])
+
+                similarity = cosine_similarity(
+                    user_lyrics_embedding.reshape(1, -1), lyrics_vector.reshape(1, -1)
+                )[0][0]
+
+                similarities.append((song_id, similarity))
+
+            # sort by similarity score (highest first)
+            similarities.sort(key=lambda x: x[1], reverse=True)
+            top_similar = similarities[:limit]
+
+            # get song details
+            song_ids = [song_id for song_id, _ in top_similar]
+            lyrical_recommendations = await get_song_details(song_ids)
+
+            # add similarity scores to results
+            similarity_dict = dict(top_similar)
+            for song in lyrical_recommendations:
+                song_id = song["id"]
+                song["lyrics_similarity"] = similarity_dict.get(song_id, 0)
+
+            if is_dev_mode:
+                logger.info(
+                    f"Received {len(lyrical_recommendations)} lyrical recommendations in {time.time() - lyrical_time:.2f}s"
+                )
+                for i, rec in enumerate(lyrical_recommendations[:5]):
+                    similarity = rec.get("lyrics_similarity", 0)
+                    logger.info(
+                        f"  Lyrical rec {i+1}: {rec['name']} by {rec['artist_names']} (similarity: {similarity:.4f})"
+                    )
+                if len(lyrical_recommendations) > 5:
+                    logger.info(f"  ... and {len(lyrical_recommendations) - 5} more")
+        except Exception as e:
+            logger.error(f"error generating lyrical recommendations: {e}")
+            if is_dev_mode:
+                logger.info("Failed to generate lyrical recommendations")
+
+    if is_dev_mode:
+        total_time = time.time() - start_time
+        logger.info(f"Total recommendation generation completed in {total_time:.2f}s")
+        logger.info(
+            f"Summary: {len(recommendations)} hybrid, {len(friend_recommendations)} friend, {len(lyrical_recommendations)} lyrical recommendations"
+        )
 
     return {
         "recommendations": {
@@ -627,17 +680,19 @@ router = APIRouter(prefix="/api/recommendations", tags=["recommendations"])
 
 # user dependency
 async def get_current_user_id(request: Request):
-    from auth import get_current_user
+    from auth import get_current_user, get_db
+
+    database = get_db()
 
     token = request.cookies.get("access_token")
     if not token:
         raise HTTPException(status_code=401, detail="Not authenticated")
 
-    user = await get_current_user(token)
+    user = await get_current_user(token, database=database)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
 
-    return user["id"]
+    return user.id
 
 
 @router.get("/")
@@ -700,8 +755,68 @@ async def get_similar_recommendations(
     return {"recommendations": song_details}
 
 
-@router.get("/lyrical")
 async def get_lyrical_recommendations(
+    user_id: int, limit: int = 20
+) -> List[Dict[str, Any]]:
+    """get recommendations based purely on lyrical content similarity"""
+    # get songs the user has already liked
+    user_liked_songs = await get_user_liked_songs(user_id)
+
+    # get user's average lyrics embedding
+    user_lyrics_embedding = await get_user_average_lyrics_embedding(user_id)
+
+    if user_lyrics_embedding is None:
+        return []
+
+    try:
+        # get all song ids with lyrics embeddings (excluding liked songs)
+        query = """
+        SELECT song_id, lyrics_embedding
+        FROM song_lyrics
+        WHERE array_length(lyrics_embedding, 1) > 0
+        """
+
+        params = {}
+        if user_liked_songs:
+            query += " AND song_id != ALL(:exclude_songs)"
+            params["exclude_songs"] = user_liked_songs
+
+        rows = await database.fetch_all(query, params)
+
+        # calculate similarity with user's average lyrics embedding
+        similarities = []
+        for row in rows:
+            song_id = row["song_id"]
+            lyrics_vector = np.array(row["lyrics_embedding"])
+
+            similarity = cosine_similarity(
+                user_lyrics_embedding.reshape(1, -1), lyrics_vector.reshape(1, -1)
+            )[0][0]
+
+            similarities.append((song_id, similarity))
+
+        # sort by similarity score (highest first)
+        similarities.sort(key=lambda x: x[1], reverse=True)
+        top_similar = similarities[:limit]
+
+        # get song details
+        song_ids = [song_id for song_id, _ in top_similar]
+        song_details = await get_song_details(song_ids)
+
+        # add similarity scores to results
+        similarity_dict = dict(top_similar)
+        for song in song_details:
+            song_id = song["id"]
+            song["lyrics_similarity"] = similarity_dict.get(song_id, 0)
+
+        return song_details
+    except Exception as e:
+        logger.error(f"error generating lyrical recommendations: {e}")
+        return []
+
+
+@router.get("/lyrical")
+async def get_lyrical_recs(
     user_id: int = Depends(get_current_user_id), limit: int = 20
 ):
     """get recommendations based on lyrical content similarity"""

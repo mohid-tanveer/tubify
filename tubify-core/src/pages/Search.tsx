@@ -78,7 +78,7 @@ export default function Search() {
       
       <div className="flex-1 flex flex-col items-center justify-center gap-4 p-4 mt-16 sm:mt-0">
         <div className="flex flex-col sm:flex-row gap-4 sm:gap-8 w-full max-w-6xl px-4">
-          {/* Search input section - full width on mobile, 1/3 on desktop */}
+          {/* search input section - full width on mobile, 1/3 on desktop */}
           <div className="flex flex-col items-center gap-4 w-full sm:w-1/3 bg-neutral-700 border border-neutral-600 rounded-lg p-4 sm:p-6">
             <h2 className="text-white text-xl">Search</h2>
             <div className="w-full">
@@ -92,14 +92,14 @@ export default function Search() {
             </div>
           </div>
 
-          {/* Results section - full width on mobile, 2/3 on desktop */}
+          {/* results section - full width on mobile, 2/3 on desktop */}
           <div className="flex flex-col gap-4 w-full sm:w-2/3 bg-neutral-700 border border-neutral-600 rounded-lg p-4 sm:p-6">
-            <h2 className="text-white text-xl">Results</h2>
+            <h2 className="text-white text-xl">results</h2>
             
-            {/* Users section */}
+            {/* users section */}
             {userResults.length > 0 && (
               <div className="w-full">
-                <h3 className="text-white text-lg mb-4">Users</h3>
+                <h3 className="text-white text-lg mb-4">users</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                   {userResults.map((user) => (
                     <div 
@@ -137,10 +137,10 @@ export default function Search() {
               </div>
             )}
 
-            {/* Playlists section */}
+            {/* playlists section */}
             {playlistResults.length > 0 && (
               <div className="w-full mt-6">
-                <h3 className="text-white text-lg mb-4">Playlists</h3>
+                <h3 className="text-white text-lg mb-4">playlists</h3>
                 <div className="grid grid-cols-1 gap-4">
                   {playlistResults.map((playlist) => (
                     <div
@@ -158,10 +158,10 @@ export default function Search() {
               </div>
             )}
 
-            {/* No results message */}
+            {/* no results message */}
             {searchQuery && !userResults.length && !playlistResults.length && (
               <div className="text-center text-neutral-400 py-8">
-                No results found
+                no results found
               </div>
             )}
           </div>

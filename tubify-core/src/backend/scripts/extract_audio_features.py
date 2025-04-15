@@ -126,7 +126,6 @@ def extract_audio_features(file_path):
 
         # tempo
         tempo_result, _ = librosa.beat.beat_track(y=y, sr=sr)
-        # Ensure tempo is a scalar value to avoid deprecation warning
         tempo = float(tempo_result)
 
         # additional features (optimize by reusing calculations)
@@ -262,8 +261,6 @@ async def store_features_in_db(database, song_id, features):
         chroma_json = json.dumps(features["chroma"])
         spectral_contrast_json = json.dumps(features["spectral_contrast"])
 
-        # Make sure feature_vector is a list of floats for PostgreSQL array type
-        # This avoids the "non-homogeneous array" error
         feature_vector = [float(x) for x in features["feature_vector"]]
 
         # check if entry already exists

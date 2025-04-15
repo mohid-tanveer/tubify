@@ -58,7 +58,7 @@ export function SongItem({ song, index }: SongItemProps) {
       <div className="col-span-3 flex items-center text-slate-300 text-xs md:text-sm">
         {Array.isArray(song.artist) ? song.artist.join(', ') : song.artist}
       </div>
-      <div className="col-span-2 flex items-center justify-end gap-2 text-slate-400 text-xs md:text-sm">
+      <div className="col-span-3 flex items-center justify-end gap-2 text-slate-400 text-xs md:text-sm">
         {song.spotify_uri && (
           <Button
             size="icon"
