@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta, timezone
-from typing import Optional, Dict, Annotated, Any
+from typing import Optional, Dict, Annotated, Any, List
 from fastapi import HTTPException, status, Depends, APIRouter, Response, Cookie
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from passlib.context import CryptContext
@@ -102,6 +102,12 @@ class User(BaseModel):
     username: str
     email: str
     is_email_verified: bool
+
+
+class ListeningHabitsData(BaseModel):
+    top_artists: List[Dict[str, Any]]
+    top_genres: List[Dict[str, Any]]
+    listening_trends: List[Dict[str, Any]]
 
 
 # password and token utilities
@@ -705,6 +711,61 @@ async def google_callback(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Failed to authenticate with Google: {str(e)}",
         )
+
+
+@router.get("/listening-habits", response_model=ListeningHabitsData)
+async def get_listening_habits(
+    user: User = Depends(get_current_user),
+    database: Database = Depends(get_db),
+):
+    # Fetch top artists
+    top_artists = await database.fetch_all(
+        """
+        SELECT a.name, COUNT(*) as play_count
+        FROM user_liked_songs uls
+        JOIN song_artists sa ON uls.song_id = sa.song_id
+        JOIN artists a ON sa.artist_id = a.id
+        WHERE uls.user_id = :user_id
+        GROUP BY a.name
+        ORDER BY play_count DESC
+        LIMIT 5
+        """,
+        {"user_id": user.id},
+    )
+
+    # Fetch top genres
+    top_genres = await database.fetch_all(
+        """
+        SELECT g.name, COUNT(*) as play_count
+        FROM user_liked_songs uls
+        JOIN song_artists sa ON uls.song_id = sa.song_id
+        JOIN artist_genres ag ON sa.artist_id = ag.artist_id
+        JOIN genres g ON ag.genre_id = g.id
+        WHERE uls.user_id = :user_id
+        GROUP BY g.name
+        ORDER BY play_count DESC
+        LIMIT 5
+        """,
+        {"user_id": user.id},
+    )
+
+    # Fetch listening trends
+    listening_trends = await database.fetch_all(
+        """
+        SELECT DATE(uls.liked_at) as date, COUNT(*) as play_count
+        FROM user_liked_songs uls
+        WHERE uls.user_id = :user_id
+        GROUP BY DATE(uls.liked_at)
+        ORDER BY date ASC
+        """,
+        {"user_id": user.id},
+    )
+
+    return {
+        "top_artists": top_artists,
+        "top_genres": top_genres,
+        "listening_trends": listening_trends,
+    }
 
 
 @router.get("/github")
