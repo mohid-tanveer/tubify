@@ -38,7 +38,7 @@ PROCESSED_SONGS_FILE = os.path.join(
 # hardware acceleration settings
 # determine optimal number of workers based on CPU count
 CPU_COUNT = psutil.cpu_count(logical=False) or 1  # physical cores, fallback to 1
-MAX_WORKERS = max(1, CPU_COUNT - 1)  # leave one core free for system processes
+MAX_WORKERS = 12  # leave one core free for system processes
 BATCH_SIZE = 10  # number of songs to process in each batch
 
 # threading lock for safe updates to shared data
@@ -125,7 +125,9 @@ def extract_audio_features(file_path):
         spectral_contrast = librosa.feature.spectral_contrast(y=y, sr=sr)
 
         # tempo
-        tempo, _ = librosa.beat.beat_track(y=y, sr=sr)
+        tempo_result, _ = librosa.beat.beat_track(y=y, sr=sr)
+        # Ensure tempo is a scalar value to avoid deprecation warning
+        tempo = float(tempo_result)
 
         # additional features (optimize by reusing calculations)
 
@@ -197,26 +199,29 @@ def extract_audio_features(file_path):
             1 if np.mean(major_degrees) > np.mean(minor_degrees) else 0
         )  # 1=major, 0=minor
 
-        # take mean of features to reduce dimensionality
-        mfcc_mean = np.mean(mfcc, axis=1).tolist()
-        chroma_mean = chroma_mean.tolist()  # already computed mean
-        spectral_contrast_mean = np.mean(spectral_contrast, axis=1).tolist()
+        # take mean of features to reduce dimensionality and ensure they're Python lists of float values
+        mfcc_mean = [float(x) for x in np.mean(mfcc, axis=1).tolist()]
+        chroma_mean = [float(x) for x in chroma_mean.tolist()]  # already computed mean
+        spectral_contrast_mean = [
+            float(x) for x in np.mean(spectral_contrast, axis=1).tolist()
+        ]
 
         # create combined feature vector including all features
+        # ensure all values are explicit Python floats
         feature_vector = (
             mfcc_mean
             + chroma_mean
             + spectral_contrast_mean
             + [
-                tempo,
-                acousticness,
-                danceability,
-                energy,
-                loudness,
-                liveness,
-                valence,
-                speechiness,
-                instrumentalness,
+                float(tempo),
+                float(acousticness),
+                float(danceability),
+                float(energy),
+                float(loudness),
+                float(liveness),
+                float(valence),
+                float(speechiness),
+                float(instrumentalness),
                 float(mode),
                 float(key),
             ]
@@ -240,8 +245,8 @@ def extract_audio_features(file_path):
             "valence": float(valence),
             "speechiness": float(speechiness),
             "instrumentalness": float(instrumentalness),
-            "mode": mode,
-            "key": key,
+            "mode": int(mode),
+            "key": int(key),
             "feature_vector": feature_vector,
         }
     except Exception as e:
@@ -256,6 +261,10 @@ async def store_features_in_db(database, song_id, features):
         mfcc_json = json.dumps(features["mfcc"])
         chroma_json = json.dumps(features["chroma"])
         spectral_contrast_json = json.dumps(features["spectral_contrast"])
+
+        # Make sure feature_vector is a list of floats for PostgreSQL array type
+        # This avoids the "non-homogeneous array" error
+        feature_vector = [float(x) for x in features["feature_vector"]]
 
         # check if entry already exists
         existing = await database.fetch_one(
@@ -280,18 +289,18 @@ async def store_features_in_db(database, song_id, features):
                     "mfcc": mfcc_json,
                     "chroma": chroma_json,
                     "spectral_contrast": spectral_contrast_json,
-                    "tempo": features["tempo"],
-                    "acousticness": features["acousticness"],
-                    "danceability": features["danceability"],
-                    "energy": features["energy"],
-                    "loudness": features["loudness"],
-                    "liveness": features["liveness"],
-                    "valence": features["valence"],
-                    "speechiness": features["speechiness"],
-                    "instrumentalness": features["instrumentalness"],
-                    "mode": features["mode"],
-                    "key": features["key"],
-                    "feature_vector": features["feature_vector"],
+                    "tempo": float(features["tempo"]),
+                    "acousticness": float(features["acousticness"]),
+                    "danceability": float(features["danceability"]),
+                    "energy": float(features["energy"]),
+                    "loudness": float(features["loudness"]),
+                    "liveness": float(features["liveness"]),
+                    "valence": float(features["valence"]),
+                    "speechiness": float(features["speechiness"]),
+                    "instrumentalness": float(features["instrumentalness"]),
+                    "mode": int(features["mode"]),
+                    "key": int(features["key"]),
+                    "feature_vector": feature_vector,
                     "song_id": song_id,
                 },
             )
@@ -308,18 +317,18 @@ async def store_features_in_db(database, song_id, features):
                     "mfcc": mfcc_json,
                     "chroma": chroma_json,
                     "spectral_contrast": spectral_contrast_json,
-                    "tempo": features["tempo"],
-                    "acousticness": features["acousticness"],
-                    "danceability": features["danceability"],
-                    "energy": features["energy"],
-                    "loudness": features["loudness"],
-                    "liveness": features["liveness"],
-                    "valence": features["valence"],
-                    "speechiness": features["speechiness"],
-                    "instrumentalness": features["instrumentalness"],
-                    "mode": features["mode"],
-                    "key": features["key"],
-                    "feature_vector": features["feature_vector"],
+                    "tempo": float(features["tempo"]),
+                    "acousticness": float(features["acousticness"]),
+                    "danceability": float(features["danceability"]),
+                    "energy": float(features["energy"]),
+                    "loudness": float(features["loudness"]),
+                    "liveness": float(features["liveness"]),
+                    "valence": float(features["valence"]),
+                    "speechiness": float(features["speechiness"]),
+                    "instrumentalness": float(features["instrumentalness"]),
+                    "mode": int(features["mode"]),
+                    "key": int(features["key"]),
+                    "feature_vector": feature_vector,
                 },
             )
 

@@ -8,6 +8,7 @@ import threading
 import concurrent.futures
 from dotenv import load_dotenv
 import shutil
+import platform
 
 # load environment variables
 load_dotenv()
@@ -17,12 +18,14 @@ ADDED_SONGS_CACHE = "added_song_ids.pkl"
 DOWNLOADED_SONGS_CACHE = "downloaded_song_ids.pkl"
 SONGS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "songs")
 # max workers for concurrent downloads - adjust based on your hardware
-MAX_WORKERS = 4
+MAX_WORKERS = 12
 # semaphore to limit concurrent downloads and avoid rate limiting
-MAX_CONCURRENT_DOWNLOADS = 3
+MAX_CONCURRENT_DOWNLOADS = 3  # reduced to avoid being flagged as a bot
 
 # ensure download directory exists
 os.makedirs(SONGS_DIR, exist_ok=True)
+SPOTIFY_CLIENT_ID = os.getenv("SPOTIFY_CLIENT_ID")
+SPOTIFY_CLIENT_SECRET = os.getenv("SPOTIFY_CLIENT_SECRET")
 
 # lock for thread-safe operations
 pickle_lock = threading.Lock()
@@ -78,20 +81,33 @@ def download_song(song_id):
     try:
         # use spotdl to download the song to temporary directory
         result = subprocess.run(
-            ["spotdl", spotify_url, "--output", working_dir],
+            [
+                "spotdl",
+                spotify_url,
+                "--output",
+                working_dir,
+                "--client-id",
+                SPOTIFY_CLIENT_ID,
+                "--client-secret",
+                SPOTIFY_CLIENT_SECRET,
+                "--cookie-file",
+                "cookies.txt",
+            ],
             capture_output=True,
             text=True,
             check=True,
         )
 
-        # move downloaded files to main songs directory
+        # move downloaded files to main songs directory and rename them
         downloaded_files = os.listdir(working_dir)
         for file in downloaded_files:
             src_file = os.path.join(working_dir, file)
 
-            # add song_id to filename to ensure uniqueness
-            base, ext = os.path.splitext(file)
-            dest_file = os.path.join(SONGS_DIR, f"{base}_{song_id}{ext}")
+            # get file extension
+            _, ext = os.path.splitext(file)
+
+            # simple naming: just song_id + extension
+            dest_file = os.path.join(SONGS_DIR, f"{song_id}{ext}")
 
             # move file atomically
             shutil.move(src_file, dest_file)

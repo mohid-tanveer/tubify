@@ -42,11 +42,10 @@ MODEL_NAME = "all-MiniLM-L6-v2"  # lightweight model, good balance of speed vs q
 # hardware acceleration settings
 # determine optimal number of workers based on CPU count
 CPU_COUNT = psutil.cpu_count(logical=False) or 1  # physical cores, fallback to 1
-MAX_WORKERS = max(1, CPU_COUNT - 1)  # leave one core free for system processes
-BATCH_SIZE = 16  # number of songs to process in each batch
-MAX_GENIUS_REQUESTS = (
-    5  # maximum number of concurrent Genius API requests to avoid rate limiting
-)
+MAX_WORKERS = 4  # reduced to avoid overloading the API
+BATCH_SIZE = 10  # reduced batch size to prevent too many concurrent requests
+MAX_GENIUS_REQUESTS = 1  # reduced to stay within rate limits
+GENIUS_REQUEST_DELAY = 2.0  # seconds between Genius API requests
 
 # threading locks for thread safety
 pickle_lock = threading.Lock()
@@ -114,22 +113,64 @@ def clean_lyrics(lyrics: str) -> str:
     return lyrics
 
 
+def clean_song_title(title: str) -> str:
+    """remove remaster information and other non-essential parts from song title"""
+    # remove remaster info in parentheses or after hyphen
+    title = re.sub(r"\s*-\s*\d+\s*remaster.*$", "", title, flags=re.IGNORECASE)
+    title = re.sub(r"\s*\(\d+\s*remaster.*\).*$", "", title, flags=re.IGNORECASE)
+    title = re.sub(r"\s*\(remaster.*\).*$", "", title, flags=re.IGNORECASE)
+
+    # remove other common suffixes that confuse search
+    title = re.sub(r"\s*\(feat\..*\).*$", "", title, flags=re.IGNORECASE)
+    title = re.sub(r"\s*\(ft\..*\).*$", "", title, flags=re.IGNORECASE)
+    title = re.sub(r"\s*\(bonus track\).*$", "", title, flags=re.IGNORECASE)
+    title = re.sub(r"\s*\(deluxe.*\).*$", "", title, flags=re.IGNORECASE)
+    title = re.sub(r"\s*\(live.*\).*$", "", title, flags=re.IGNORECASE)
+
+    return title.strip()
+
+
 def get_lyrics_from_genius(song_name: str, artist_name: str) -> Optional[str]:
     """fetch lyrics for a song from genius"""
     with genius_semaphore:
         try:
+            # Enforce delay between API requests to avoid rate limiting
+            time.sleep(GENIUS_REQUEST_DELAY)
+
+            # Clean song title to improve search results
+            cleaned_song_name = clean_song_title(song_name)
+
             genius = lyricsgenius.Genius(GENIUS_TOKEN)
             # disable status messages and exclude annotations
             genius.verbose = False
             genius.remove_section_headers = True
-            genius.timeout = 10  # set timeout to avoid hanging
+            genius.timeout = 15  # increased timeout
 
-            # search for the song
-            song = genius.search_song(song_name, artist_name)
+            # Search with cleaned song name first
+            with print_lock:
+                logger.info(f"searching for: {cleaned_song_name} by {artist_name}")
+
+            song = genius.search_song(cleaned_song_name, artist_name)
 
             if song:
                 lyrics = clean_lyrics(song.lyrics)
                 return lyrics
+
+            # If the cleaned name doesn't match but original had extra info, try both
+            if cleaned_song_name != song_name:
+                # Try again with original title as a fallback
+                with print_lock:
+                    logger.info(
+                        f"trying with original title: {song_name} by {artist_name}"
+                    )
+
+                # Add delay before second attempt
+                time.sleep(GENIUS_REQUEST_DELAY)
+                song = genius.search_song(song_name, artist_name)
+
+                if song:
+                    lyrics = clean_lyrics(song.lyrics)
+                    return lyrics
 
             return None
         except Exception as e:
@@ -137,6 +178,8 @@ def get_lyrics_from_genius(song_name: str, artist_name: str) -> Optional[str]:
                 logger.error(
                     f"error fetching lyrics for {song_name} by {artist_name}: {e}"
                 )
+            # Add extra delay after error to help with rate limiting
+            time.sleep(GENIUS_REQUEST_DELAY * 2)
             return None
 
 
@@ -283,11 +326,25 @@ def process_song_lyrics(
     # fetch lyrics from genius
     lyrics = get_lyrics_from_genius(song_name, primary_artist)
 
-    # if no lyrics found, try with just the song name
+    # if no lyrics found, try with just the song name (cleaned)
     if not lyrics:
         with print_lock:
             logger.info(f"trying without artist name for: {song_name}")
+
+        # Add delay before retry
+        time.sleep(GENIUS_REQUEST_DELAY)
         lyrics = get_lyrics_from_genius(song_name, "")
+
+    # if still no lyrics, try with a cleaned version of the song name
+    if not lyrics:
+        cleaned_song_name = clean_song_title(song_name)
+        if cleaned_song_name != song_name:
+            with print_lock:
+                logger.info(f"trying with simplified song name: {cleaned_song_name}")
+
+            # Add delay before retry
+            time.sleep(GENIUS_REQUEST_DELAY)
+            lyrics = get_lyrics_from_genius(cleaned_song_name, primary_artist)
 
     # if still no lyrics, mark as processed but store empty string
     if not lyrics:
