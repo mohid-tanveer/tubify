@@ -42,6 +42,7 @@ import {
   likedSongsLoader,
   friendLikedSongsLoader,
   playlistYouTubeQueueLoader,
+  listeningHabitsLoader,
 } from "./loaders";
 import "./App.css";
 
@@ -167,6 +168,14 @@ const router = createBrowserRouter([
             <ListeningHabits />
           </ProtectedRoute>
         ),
+        loader: async (args) => {
+          // first check auth and spotify status
+          const result = await fullAuthLoader(args);
+          if (result) return result; // if it returns a redirect, pass it through
+
+          // if auth checks pass, load listening habits
+          return listeningHabitsLoader();
+        },
       },
       {
         path: "/playlists",

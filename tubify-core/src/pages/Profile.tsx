@@ -506,23 +506,14 @@ export default function Profile() {
 
                 {likedSongs && likedSongs.count > 0 && (
                   <Button
-                  onClick={() => navigate("/liked-songs")}
-                  variant="outline"
-                  className="flex items-center justify-center gap-2 w-full"
+                    onClick={() => navigate("/liked-songs")}
+                    variant="outline"
+                    className="flex items-center justify-center gap-2 w-full"
                   >
-                  <Music className="mr-2 h-4 w-4" />
-                  View Liked Songs
+                    <Music className="mr-2 h-4 w-4" />
+                    View Liked Songs
                   </Button>
                 )}
-                    <Button
-                      onClick={() => navigate("/liked-songs")}
-                      variant="outline"
-                      className="flex items-center justify-center gap-2 w-full"
-                    >
-                      <Music className="mr-2 h-4 w-4" />
-                      View Liked Songs
-                    </Button>
-                  )}
                 </>
               ) : (
                 <Button

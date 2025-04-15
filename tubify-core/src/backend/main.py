@@ -11,6 +11,7 @@ from users import router as users_router
 from search import router as search_router
 from liked_songs import router as liked_songs_router
 from youtube import router as youtube_router
+from listening_habits import router as listening_habits_router
 from database import lifespan
 
 # load environment variables
@@ -57,6 +58,7 @@ app.include_router(users_router)
 app.include_router(search_router)
 app.include_router(liked_songs_router)
 app.include_router(youtube_router)
+app.include_router(listening_habits_router)
 if __name__ == "__main__":
     uvicorn.run(
         app,
