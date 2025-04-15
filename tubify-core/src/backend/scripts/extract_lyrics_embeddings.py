@@ -140,11 +140,10 @@ def get_lyrics_from_genius(song_name: str, artist_name: str) -> Optional[str]:
             # Clean song title to improve search results
             cleaned_song_name = clean_song_title(song_name)
 
-            genius = lyricsgenius.Genius(GENIUS_TOKEN)
+            genius = lyricsgenius.Genius(GENIUS_TOKEN, sleep_time=5)
             # disable status messages and exclude annotations
             genius.verbose = False
             genius.remove_section_headers = True
-            genius.timeout = 15  # increased timeout
 
             # Search with cleaned song name first
             with print_lock:
