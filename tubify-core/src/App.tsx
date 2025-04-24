@@ -1,6 +1,6 @@
 import { RouterProvider, createBrowserRouter, Navigate, useLocation, redirect, LoaderFunction, Outlet } from 'react-router-dom'
 import { useContext, useEffect, useState } from 'react'
-import { Homepage, AuthPage, EmailVerification, ResetPassword, RequestReset, WatchPage, Profile, Search, Playlists, PlaylistDetail, UserProfile, UserPlaylists, UserPlaylistDetail, LikedSongs, FriendLikedSongs, PlaylistYouTubeView, RecentlyPlayed, Recommendations, ListeningHabits, } from './pages'
+import { Homepage, AuthPage, EmailVerification, ResetPassword, RequestReset, WatchPage, Profile, Search, Playlists, PlaylistDetail, UserProfile, UserPlaylists, UserPlaylistDetail, LikedSongs, FriendLikedSongs, PlaylistYouTubeView, RecentlyPlayed, Recommendations, ListeningHabits, EnterReview,} from './pages'
 import { Spinner } from './components/ui/spinner'
 import { AuthContext } from './contexts/auth'
 import { Toaster } from "@/components/ui/sonner"
@@ -111,6 +111,15 @@ const router = createBrowserRouter([
           </ProtectedRoute>
         ),
         loader: profileLoader,
+      },
+      {
+        path: "/enter-review",
+        element: (
+          <ProtectedRoute>
+            <EnterReview />
+          </ProtectedRoute>
+        ),
+        loader: fullAuthLoader,
       },
       {
         path: "/users/:username",
