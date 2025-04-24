@@ -130,3 +130,37 @@ async def get_all_reviews():
     song_reviews = await database.fetch_all("SELECT * FROM song_reviews")
     album_reviews = await database.fetch_all("SELECT * FROM album_reviews")
     return {"song_reviews": song_reviews, "album_reviews": album_reviews}
+
+
+# Get all reviews for a specific song
+@router.get("/songs/{song_id}", response_model=List[SongReview])
+async def get_song_reviews(song_id: str):
+    try:
+        song_reviews = await database.fetch_all(
+            """
+            SELECT * FROM song_reviews
+            WHERE song_id = :song_id
+            ORDER BY created_at DESC
+            """,
+            {"song_id": song_id},
+        )
+        return [dict(review) for review in song_reviews]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Failed to fetch song reviews")
+
+
+# Get all reviews for a specific album
+@router.get("/albums/{album_id}", response_model=List[AlbumReview])
+async def get_album_reviews(album_id: str):
+    try:
+        album_reviews = await database.fetch_all(
+            """
+            SELECT * FROM album_reviews
+            WHERE album_id = :album_id
+            ORDER BY created_at DESC
+            """,
+            {"album_id": album_id},
+        )
+        return [dict(review) for review in album_reviews]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Failed to fetch album reviews")
