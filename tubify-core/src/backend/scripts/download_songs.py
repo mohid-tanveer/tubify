@@ -18,9 +18,9 @@ ADDED_SONGS_CACHE = "added_song_ids.pkl"
 DOWNLOADED_SONGS_CACHE = "downloaded_song_ids.pkl"
 SONGS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "songs")
 # max workers for concurrent downloads - adjust based on your hardware
-MAX_WORKERS = 12
+MAX_WORKERS = 4
 # semaphore to limit concurrent downloads and avoid rate limiting
-MAX_CONCURRENT_DOWNLOADS = 3  # reduced to avoid being flagged as a bot
+MAX_CONCURRENT_DOWNLOADS = 2  # reduced to avoid being flagged as a bot
 
 # ensure download directory exists
 os.makedirs(SONGS_DIR, exist_ok=True)
