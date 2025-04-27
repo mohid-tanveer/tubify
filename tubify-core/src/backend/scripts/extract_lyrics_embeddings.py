@@ -130,8 +130,156 @@ def clean_song_title(title: str) -> str:
     return title.strip()
 
 
+def is_english(text: str) -> bool:
+    """improved check to determine if lyrics are in English"""
+    if not text:
+        return False
+
+    # count of common English words/phrases that should appear in most English lyrics
+    english_markers = [
+        "the",
+        "and",
+        "you",
+        "me",
+        "i",
+        "my",
+        "your",
+        "in",
+        "of",
+        "to",
+        "is",
+        "are",
+        "this",
+        "that",
+        "with",
+        "for",
+        "from",
+        "love",
+        "like",
+        "don't",
+        "can't",
+        "won't",
+        "it's",
+        "i'm",
+        "you're",
+        "a",
+        "on",
+        "it",
+        "was",
+        "be",
+        "have",
+        "but",
+        "not",
+        "what",
+        "when",
+        "why",
+        "how",
+        "all",
+        "we",
+        "they",
+        "so",
+    ]
+
+    # common non-English markers (words that suggest text is in another language)
+    non_english_markers = [
+        "я",
+        "ты",
+        "мы",
+        "в",
+        "на",
+        "и",
+        "с",
+        "по",
+        "не",
+        "это",  # Russian
+        "el",
+        "la",
+        "los",
+        "las",
+        "es",
+        "están",
+        "yo",
+        "tu",
+        "mi",
+        "su",  # Spanish
+        "le",
+        "la",
+        "les",
+        "nous",
+        "vous",
+        "et",
+        "sur",
+        "dans",
+        "je",
+        "tu",  # French
+        "der",
+        "die",
+        "das",
+        "und",
+        "ich",
+        "du",
+        "er",
+        "sie",
+        "wir",
+        "ihr",  # German
+    ]
+
+    # convert to lowercase for easier comparison
+    text_lower = text.lower()
+
+    # count English markers
+    english_count = sum(
+        1 for word in english_markers if f" {word} " in f" {text_lower} "
+    )
+
+    # count non-English markers
+    non_english_count = sum(
+        1 for word in non_english_markers if f" {word} " in f" {text_lower} "
+    )
+
+    # check for English lyrics annotations
+    has_english_annotations = "lyrics" in text_lower and "contributors" in text_lower
+
+    # check for translation markers
+    has_translation_markers = any(
+        marker in text_lower
+        for marker in ["translation", "перевод", "traducción", "traduction"]
+    )
+
+    # if translation markers are found, it's likely not the original English lyrics
+    if has_translation_markers:
+        return False
+
+    # if very few English markers and significant non-English markers, probably not English
+    if english_count < len(english_markers) * 0.15 and non_english_count > 5:
+        return False
+
+    # if decent number of English markers, probably English
+    return english_count >= len(english_markers) * 0.25 or has_english_annotations
+
+
+def has_foreign_language_markers(title: str) -> bool:
+    """check if the title contains non-english language markers"""
+    foreign_markers = [
+        "русский",
+        "перевод",
+        "traducción",
+        "español",
+        "français",
+        "deutsche",
+        "italiana",
+        "日本語",
+        "中文",
+        "한국어",
+        "português",
+    ]
+
+    title_lower = title.lower()
+    return any(marker in title_lower for marker in foreign_markers)
+
+
 def get_lyrics_from_genius(song_name: str, artist_name: str) -> Optional[str]:
-    """fetch lyrics for a song from genius"""
+    """fetch lyrics for a song from genius with advanced search strategies"""
     with genius_semaphore:
         try:
             time.sleep(GENIUS_REQUEST_DELAY)
@@ -146,28 +294,132 @@ def get_lyrics_from_genius(song_name: str, artist_name: str) -> Optional[str]:
             with print_lock:
                 logger.info(f"searching for: {cleaned_song_name} by {artist_name}")
 
-            song = genius.search_song(cleaned_song_name, artist_name)
+            # search strategies to try in order
+            search_strategies = [
+                # 1. Standard search with artist
+                (f"{cleaned_song_name}", artist_name),
+                # 2. Core song name with artist
+                (f"{cleaned_song_name.split('(')[0].strip()}", artist_name),
+                # 3. Simple combined format
+                (f"{cleaned_song_name.split('(')[0].strip()} {artist_name}", None),
+                # 4. Song name only
+                (f"{cleaned_song_name}", None),
+                # 5. Song with "lyrics" keyword
+                (f"{cleaned_song_name} lyrics", None),
+                # 6. Song with English lyrics keyword
+                (f"{cleaned_song_name} english lyrics", None),
+            ]
 
-            if song:
-                lyrics = clean_lyrics(song.lyrics)
-                return lyrics
-            if cleaned_song_name != song_name:
+            # Try each search strategy
+            for idx, (search_term, artist_filter) in enumerate(search_strategies):
+                try:
+                    with print_lock:
+                        if artist_filter:
+                            logger.info(
+                                f"Strategy {idx+1}: searching for '{search_term}' by '{artist_filter}'"
+                            )
+                        else:
+                            logger.info(
+                                f"Strategy {idx+1}: searching for '{search_term}' without artist filter"
+                            )
+
+                    if idx > 0:
+                        time.sleep(GENIUS_REQUEST_DELAY)  # delay between searches
+
+                    song = genius.search_song(search_term, artist_filter)
+
+                    if song and hasattr(song, "lyrics"):
+                        lyrics = clean_lyrics(song.lyrics)
+
+                        # check if lyrics are in English and not a translation
+                        if is_english(lyrics) and not has_foreign_language_markers(
+                            song.title
+                        ):
+                            with print_lock:
+                                logger.info(
+                                    f"Found English lyrics with strategy {idx+1}"
+                                )
+                            return lyrics
+                        else:
+                            with print_lock:
+                                logger.info(
+                                    f"Found non-English lyrics with strategy {idx+1}, continuing search"
+                                )
+                except Exception as e:
+                    with print_lock:
+                        logger.warning(f"Error in search strategy {idx+1}: {e}")
+
+            # Try using search_songs API for more control
+            try:
                 with print_lock:
-                    logger.info(
-                        f"trying with original title: {song_name} by {artist_name}"
-                    )
+                    logger.info("Trying advanced search query")
+
                 time.sleep(GENIUS_REQUEST_DELAY)
-                song = genius.search_song(song_name, artist_name)
+                search_results = genius.search_songs(
+                    f"{cleaned_song_name} {artist_name}"
+                )
 
-                if song:
-                    lyrics = clean_lyrics(song.lyrics)
-                    return lyrics
+                if search_results and "hits" in search_results:
+                    # Filter out non-English results
+                    filtered_hits = []
+                    for hit in search_results["hits"]:
+                        result_title = hit.get("result", {}).get("title", "")
+                        result_artist = (
+                            hit.get("result", {})
+                            .get("primary_artist", {})
+                            .get("name", "")
+                        )
 
+                        # Skip results with foreign language markers in title
+                        if has_foreign_language_markers(result_title):
+                            continue
+
+                        # Prioritize results with matching artist
+                        if artist_name.lower() in result_artist.lower():
+                            filtered_hits.insert(0, hit)
+                        else:
+                            filtered_hits.append(hit)
+
+                    # Try each hit until we find English lyrics
+                    for hit_idx, hit in enumerate(
+                        filtered_hits[:3]
+                    ):  # Limit to first 3 hits
+                        try:
+                            result = hit.get("result", {})
+                            song_id = result.get("id")
+
+                            if song_id:
+                                time.sleep(GENIUS_REQUEST_DELAY)
+                                song = genius.song(song_id)
+
+                                if song and hasattr(song, "lyrics"):
+                                    lyrics = clean_lyrics(song.lyrics)
+                                    if is_english(lyrics):
+                                        with print_lock:
+                                            logger.info(
+                                                f"Found English lyrics in hit #{hit_idx+1}"
+                                            )
+                                        return lyrics
+                        except Exception as e:
+                            with print_lock:
+                                logger.warning(
+                                    f"Error processing hit #{hit_idx+1}: {e}"
+                                )
+            except Exception as e:
+                with print_lock:
+                    logger.warning(f"Error in advanced search: {e}")
+
+            # If we reached here, we couldn't find appropriate lyrics
+            with print_lock:
+                logger.warning(
+                    f"Could not find usable lyrics for: {song_name} by {artist_name}"
+                )
             return None
+
         except Exception as e:
             with print_lock:
                 logger.error(
-                    f"error fetching lyrics for {song_name} by {artist_name}: {e}"
+                    f"Error fetching lyrics for {song_name} by {artist_name}: {e}"
                 )
             time.sleep(GENIUS_REQUEST_DELAY * 2)
             return None

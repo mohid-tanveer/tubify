@@ -92,8 +92,8 @@ def save_processed_song_ids(processed_song_ids):
 def extract_audio_features(file_path):
     """extract audio features from a song file using librosa with GPU acceleration if available"""
     try:
-        # load audio file (use a lower sample rate for faster processing)
-        y, sr = librosa.load(file_path, sr=22050, mono=True)
+        # load audio at native sampling rate, convert to mono
+        y, sr = librosa.load(file_path, sr=None, mono=True)
 
         # use GPU if available for computationally intensive operations
         if HAS_GPU:
@@ -115,92 +115,122 @@ def extract_audio_features(file_path):
             D_np = None  # not used in CPU path
 
         # extract features
-        # mfcc - mel-frequency cepstral coefficients (always on CPU)
+        # mfcc - capture the spectral envelope of the audio (13 coefficients)
         mfcc = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=13)
 
-        # chroma features
+        # chroma STFT maps energy to 12 pitch classes (C to B)
         chroma = librosa.feature.chroma_stft(y=y, sr=sr)
 
-        # spectral contrast
+        # spectral contrast measures the difference between peaks and valleys in the spectrum
         spectral_contrast = librosa.feature.spectral_contrast(y=y, sr=sr)
 
+        # harmonic/percussive source separation
+        y_harmonic, y_percussive = librosa.effects.hpss(y)
+        eps = 1e-10  # avoid division by zero
+
         # tempo
-        tempo_result, _ = librosa.beat.beat_track(y=y, sr=sr)
-        tempo = float(tempo_result)
+        onset_env = librosa.onset.onset_strength(y=y, sr=sr)
+        try:
+            from librosa.feature.rhythm import tempo as compute_tempo
+
+            tempo_vals = compute_tempo(onset_envelope=onset_env, sr=sr)
+        except ImportError:
+            tempo_vals = librosa.beat.tempo(onset_envelope=onset_env, sr=sr)
+        tempo = float(tempo_vals[0])  # tempo in BPM
 
         # additional features (optimize by reusing calculations)
 
-        # pre-compute spectral centroid once to reuse
+        # spectral centroid in Hz
         centroid = librosa.feature.spectral_centroid(y=y, sr=sr)[0]
 
-        # acousticness - spectral centroid (inversely related to acousticness)
-        # normalize and invert (higher centroid = less acoustic)
-        acousticness = 1.0 - (np.mean(centroid) / 10000)
-        acousticness = max(0.0, min(1.0, acousticness))  # clamp to [0,1]
+        # acousticness - ratio of non-percussive (harmonic) energy vs total energy
+        norm_centroid = np.mean(centroid) / (np.percentile(centroid, 95) + eps)
+        harmonic_energy = np.mean(librosa.feature.rms(y=y_harmonic))
+        percussive_energy = np.mean(librosa.feature.rms(y=y_percussive))
+        hnr = harmonic_energy / (harmonic_energy + percussive_energy + eps)
+        acoustic_component = 1.0 - norm_centroid
+        # combine normalized spectral centroid (lower = more acoustic) and harmonic-to-noise ratio
+        acousticness = 0.5 * acoustic_component + 0.5 * hnr
+        acousticness = np.clip(acousticness, 0.0, 1.0)
 
-        # pre-compute RMS energy to reuse
+        # energy - based on integrated loudness
+        # compute integrated loudness via RMS and spectral centroid
         rms = librosa.feature.rms(y=y)[0]
-
-        # energy - RMS energy
-        energy = np.mean(rms)
-        energy = min(1.0, energy * 10)  # scale and clamp to [0,1]
-
-        # loudness - compute in dB, typical range: -60 to 0
-        loudness = librosa.amplitude_to_db(rms, ref=np.max).mean()
-
-        # compute onset envelope once to reuse
-        onset_env = librosa.onset.onset_strength(y=y, sr=sr)
+        rms_norm = np.mean(rms) / (np.percentile(rms, 95) + eps)
+        centroid_norm = np.mean(centroid) / (np.percentile(centroid, 95) + eps)
+        energy = np.clip(0.5 * rms_norm + 0.5 * centroid_norm, 0.0, 1.0)
+        loudness = librosa.amplitude_to_db(
+            rms, ref=np.max
+        ).mean()  # average loudness in dB
 
         # danceability - based on beat strength and regularity
+        # combines beat strength (PLP), tempo, and rhythmic regularity
         pulse = librosa.beat.plp(onset_envelope=onset_env, sr=sr)
         beat_strength = np.mean(pulse)
         _, beat_frames = librosa.beat.beat_track(onset_envelope=onset_env, sr=sr)
-        beat_intervals = np.diff(librosa.frames_to_time(beat_frames, sr=sr))
-        beat_regularity = 1.0 - np.std(beat_intervals) if len(beat_intervals) > 0 else 0
-        danceability = beat_strength * 0.8 + beat_regularity * 0.2
-        danceability = max(0.0, min(1.0, danceability))  # clamp to [0,1]
+        if len(beat_frames) > 1:
+            intervals = np.diff(librosa.frames_to_time(beat_frames, sr=sr))
+            beat_reg = 1.0 - (np.std(intervals) / (np.mean(intervals) + eps))
+        else:
+            beat_reg = 0.0
+        # normalize tempo to [0,1] over plausible BPM range
+        tempo_norm = np.clip((tempo - 40) / (200 - 40), 0.0, 1.0)
+        danceability = np.clip(
+            0.3 * (beat_strength / (beat_strength + eps))
+            + 0.5 * tempo_norm
+            + 0.2 * beat_reg,
+            0.0,
+            1.0,
+        )
 
         # liveness - based on presence of audience/background noise
-        # higher zero crossing rate can indicate live recording
-        zero_crossings = librosa.feature.zero_crossing_rate(y=y)[0]
-        liveness = np.mean(zero_crossings)
-        liveness = min(1.0, liveness * 20)  # scale and clamp to [0,1]
+        # live recordings often exhibit higher spectral flatness and zero-crossing rate
+
+        # spectral flatness: live recordings often noisier
+        flatness = librosa.feature.spectral_flatness(y=y)[0].mean()
+        # zero-crossing rate: live tracks often more dynamic
+        zcr = librosa.feature.zero_crossing_rate(y=y)[0].mean()
+        # combine and clamp
+        liveness = np.clip(0.8 * flatness + 0.2 * (zcr * 10), 0, 1)
 
         # valence - based on spectral qualities that correlate with "happiness"
-        # higher harmonic content and higher spectral flatness tend to correlate with positive valence
-        harmonic = librosa.effects.harmonic(y)
-        harmonic_mean = np.abs(harmonic).mean()
-        spec_flat = librosa.feature.spectral_flatness(y=y)[0].mean()
-        valence = harmonic_mean * 0.6 + spec_flat * 50
-        valence = max(0.0, min(1.0, valence))  # clamp to [0,1]
-
-        # speechiness - based on presence of speech-like qualities
-        # higher mfcc variance in certain bands can indicate speech
-        mfcc_var = np.var(mfcc[1:5], axis=1).mean()
-        speechiness = mfcc_var / 100
-        speechiness = max(0.0, min(1.0, speechiness))  # clamp to [0,1]
-
-        # instrumentalness - inverse of vocals detection
-        # higher mfccs in vocal range indicate vocals
-        vocal_mfccs = np.mean(mfcc[2:6])
-        instrumentalness = 1.0 - (vocal_mfccs / 100)
-        instrumentalness = max(0.0, min(1.0, instrumentalness))  # clamp to [0,1]
-
-        # key and mode estimation
+        # positiveness based on mode (major/minor) and brightness
+        # mean chroma vector
+        chroma = librosa.feature.chroma_stft(y=y, sr=sr)
         chroma_mean = np.mean(chroma, axis=1)
+        # key estimation
         key = int(np.argmax(chroma_mean))  # 0-11 representing C, C#, D, etc.
-
         # mode estimation (major vs minor)
         # simplified approach: major tends to have stronger 3rd and 6th degrees
         major_degrees = np.roll(chroma_mean, -key)[[4, 9]]  # major 3rd and 6th
         minor_degrees = np.roll(chroma_mean, -key)[[3, 8]]  # minor 3rd and 6th
-        mode = (
-            1 if np.mean(major_degrees) > np.mean(minor_degrees) else 0
-        )  # 1=major, 0=minor
+        mode = 1 if np.mean(major_degrees) > np.mean(minor_degrees) else 0
+        spectral_brightness = np.mean(centroid) / (np.percentile(centroid, 95) + eps)
+        spectral_brightness = np.clip(spectral_brightness, 0.0, 1.0)
+        valence = 0.5 * float(mode) + 0.5 * spectral_brightness
+        valence = np.clip(valence, 0.0, 1.0)
+
+        # speechiness - based on presence of speech-like qualities
+        # degree of spoken-word content vs music
+        non_silent = librosa.effects.split(y, top_db=35)
+        nonsilent_duration = sum([end - start for start, end in non_silent])
+        vad_score = nonsilent_duration / len(y)
+        non_hnr = percussive_energy / (harmonic_energy + percussive_energy + eps)
+        speechiness = 0.5 * vad_score + 0.5 * non_hnr
+        speechiness = np.clip(speechiness, 0.0, 1.0)
+
+        # instrumentalness - inverse proxy for vocal presence using mel-spectrogram energy in vocal band
+        S = librosa.feature.melspectrogram(y=y, sr=sr, n_mels=128)
+        mel_freqs = librosa.mel_frequencies(n_mels=128, fmin=0, fmax=sr / 2)
+        vocal_idx = np.where((mel_freqs >= 300) & (mel_freqs <= 3000))[0]
+        vocal_energy = np.sum(S[vocal_idx, :])
+        total_energy_spec = np.sum(S)
+        vocal_ratio = vocal_energy / (total_energy_spec + eps)
+        instrumentalness = np.clip(1.0 - vocal_ratio, 0.0, 1.0)
 
         # take mean of features to reduce dimensionality and ensure they're Python lists of float values
         mfcc_mean = [float(x) for x in np.mean(mfcc, axis=1).tolist()]
-        chroma_mean = [float(x) for x in chroma_mean.tolist()]  # already computed mean
+        chroma_mean = [float(x) for x in chroma_mean.tolist()]
         spectral_contrast_mean = [
             float(x) for x in np.mean(spectral_contrast, axis=1).tolist()
         ]
@@ -212,7 +242,7 @@ def extract_audio_features(file_path):
             + chroma_mean
             + spectral_contrast_mean
             + [
-                float(tempo),
+                float(2),
                 float(acousticness),
                 float(danceability),
                 float(energy),
