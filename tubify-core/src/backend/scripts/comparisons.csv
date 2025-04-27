@@ -1,0 +1,11 @@
+energy,tempo,danceability,loudness,liveness,valence,track_artist,speechiness,track_name,instrumentalness,mode,key,acousticness,source
+0.663,146.053,0.634,-6.818,0.102,0.6,beabadoobee,0.0331,the perfect pair,0.124,1,11,0.433,spotify
+1,143.554,0.303,-7.680,1,0.800,beabadoobee,1,the perfect pair,0.895,1,11,0.805,mine
+0.62,120.042,0.857,-8.13,0.0934,0.796,Charli xcx,0.0472,360,0.244,1,0,0.646,spotify
+1,123.046,0.362,-8.990,1,1,Charli xcx,1,360,0.922,1,0,0.828,mine
+0.712,113.805,0.671,-7.815,0.103,0.462,Queen,0.048,Under Pressure - Remastered 2011,0,1,2,0.429,spotify
+1,112.347,0.302,-13.871,1,1,Queen,1,Under Pressure - Remastered 2011,0.904,1,2,0.743,mine
+0.673,165.921,0.529,-4.711,0.093,0.366,Drake,0.175,Jimmy Cooks (feat. 21 Savage),2.41e-06,1,0,0.000307,spotify
+1,161.499,0.331,-8.494,1,1,Drake,1,Jimmy Cooks (feat. 21 Savage),0.822,1,0,0.734,mine
+0.96,125.921,0.356,-3.487,0.209,0.0857,My Chemical Romance,0.104,Helena,0,1,4,0.0142,spotify
+1,123.046,0.290,-5.475,1,1,My Chemical Romance,1,Helena,0.963,1,4,0.738,mine
