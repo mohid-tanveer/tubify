@@ -127,9 +127,11 @@ const PLAYLIST_DETAIL_CACHE_PREFIX = import.meta.env
   .VITE_PLAYLIST_DETAIL_CACHE_PREFIX
 const PLAYLIST_DETAIL_TIMESTAMP_PREFIX = import.meta.env
   .VITE_PLAYLIST_DETAIL_TIMESTAMP_PREFIX
-const RECOMMENDATIONS_CACHE_KEY = "tubify_recommendations_cache"
+const RECOMMENDATIONS_CACHE_KEY = import.meta.env.VITE_RECOMMENDATIONS_CACHE_KEY
 const CACHE_TTL = parseInt(import.meta.env.VITE_CACHE_TTL)
-const RECOMMENDATIONS_CACHE_TTL = 5 * 60 * 1000 // 5 minutes in milliseconds
+const RECOMMENDATIONS_CACHE_TTL = parseInt(
+  import.meta.env.VITE_RECOMMENDATIONS_CACHE_TTL,
+)
 
 // function to check if cache is valid
 function isCacheValid(timestamp: string | null): boolean {

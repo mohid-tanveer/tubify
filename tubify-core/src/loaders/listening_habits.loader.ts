@@ -5,7 +5,7 @@ const LISTENING_HABITS_CACHE_KEY = import.meta.env
   .VITE_LISTENING_HABITS_CACHE_KEY
 const LISTENING_HABITS_TIMESTAMP_KEY = import.meta.env
   .VITE_LISTENING_HABITS_TIMESTAMP_KEY
-const CACHE_TTL = parseInt(import.meta.env.VITE_CACHE_TTL)
+const CACHE_TTL = parseInt(import.meta.env.VITE_LISTENING_HABITS_CACHE_TTL)
 
 interface ListeningHabitsParams {
   artists_time_range: string

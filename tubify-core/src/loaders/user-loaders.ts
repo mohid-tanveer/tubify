@@ -115,16 +115,13 @@ const USER_PLAYLIST_CACHE_TIMESTAMP_KEY = import.meta.env
 const USER_CACHE_DURATION = parseInt(import.meta.env.VITE_USER_CACHE_DURATION)
 
 // cache keys for liked songs
-const LIKED_SONGS_CACHE_KEY =
-  import.meta.env.VITE_LIKED_SONGS_CACHE_KEY || "liked-songs-cache"
-const LIKED_SONGS_CACHE_TIMESTAMP_KEY =
-  import.meta.env.VITE_LIKED_SONGS_CACHE_TIMESTAMP_KEY ||
-  "liked-songs-cache-timestamp"
-const FRIEND_LIKED_SONGS_CACHE_PREFIX =
-  import.meta.env.VITE_FRIEND_LIKED_SONGS_CACHE_PREFIX || "friend-liked-songs-"
-const FRIEND_LIKED_SONGS_TIMESTAMP_PREFIX =
-  import.meta.env.VITE_FRIEND_LIKED_SONGS_TIMESTAMP_PREFIX ||
-  "friend-liked-songs-timestamp-"
+const LIKED_SONGS_CACHE_KEY = import.meta.env.VITE_LIKED_SONGS_CACHE_KEY
+const LIKED_SONGS_CACHE_TIMESTAMP_KEY = import.meta.env
+  .VITE_LIKED_SONGS_CACHE_TIMESTAMP_KEY
+const FRIEND_LIKED_SONGS_CACHE_PREFIX = import.meta.env
+  .VITE_FRIEND_LIKED_SONGS_CACHE_PREFIX
+const FRIEND_LIKED_SONGS_TIMESTAMP_PREFIX = import.meta.env
+  .VITE_FRIEND_LIKED_SONGS_TIMESTAMP_PREFIX
 
 // function to check if cache is valid
 function isCacheValid(timestamp: string | null): boolean {
