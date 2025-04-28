@@ -1,63 +1,93 @@
-import { RouterProvider, createBrowserRouter, Navigate, useLocation, redirect, LoaderFunction, Outlet } from 'react-router-dom'
-import { useContext, useEffect, useState } from 'react'
-import { Homepage, AuthPage, EmailVerification, ResetPassword, RequestReset, WatchPage, Profile, Search, Playlists, PlaylistDetail, UserProfile, UserPlaylists, UserPlaylistDetail, LikedSongs, FriendLikedSongs, PlaylistYouTubeView, RecentlyPlayed, Recommendations, ListeningHabits, } from './pages'
-import { Spinner } from './components/ui/spinner'
-import { AuthContext } from './contexts/auth'
+import {
+  RouterProvider,
+  createBrowserRouter,
+  Navigate,
+  useLocation,
+  redirect,
+  LoaderFunction,
+  Outlet,
+} from "react-router-dom"
+import { useContext, useEffect, useState } from "react"
+import {
+  Homepage,
+  AuthPage,
+  EmailVerification,
+  ResetPassword,
+  RequestReset,
+  WatchPage,
+  Profile,
+  Search,
+  Playlists,
+  PlaylistDetail,
+  UserProfile,
+  UserPlaylists,
+  UserPlaylistDetail,
+  LikedSongs,
+  FriendLikedSongs,
+  PlaylistYouTubeView,
+  RecentlyPlayed,
+  Recommendations,
+  ListeningHabits,
+  RecommendationAnalysis,
+} from "./pages"
+import { Spinner } from "./components/ui/spinner"
+import { AuthContext } from "./contexts/auth"
 import { Toaster } from "@/components/ui/sonner"
-import api from './lib/axios'
-import { 
-  playlistsLoader, 
-  playlistDetailLoader, 
-  userProfileLoader, 
-  userPlaylistsLoader, 
-  userPlaylistDetailLoader, 
+import api from "./lib/axios"
+import {
+  playlistsLoader,
+  playlistDetailLoader,
+  userProfileLoader,
+  userPlaylistsLoader,
+  userPlaylistDetailLoader,
   profileLoader,
   likedSongsLoader,
   friendLikedSongsLoader,
   playlistYouTubeQueueLoader,
   listeningHabitsLoader,
-  recommendationsLoader
-} from './loaders'
-import './App.css'
+  recommendationsLoader,
+  recommendationAnalysisLoader,
+} from "./loaders"
+import "./App.css"
 
 interface User {
-  id: number;
-  username: string;
-  email: string;
-  is_email_verified: boolean;
+  id: number
+  username: string
+  email: string
+  is_email_verified: boolean
 }
 
 // loader function to check spotify status
 const spotifyAuthLoader: LoaderFunction = async () => {
   try {
-    const response = await api.get("/api/spotify/status");
-    return { isSpotifyConnected: response.data.is_connected };
+    const response = await api.get("/api/spotify/status")
+    return { isSpotifyConnected: response.data.is_connected }
   } catch {
-    return { isSpotifyConnected: false };
+    return { isSpotifyConnected: false }
   }
-};
+}
 
 // loader function to check auth and spotify status
 const fullAuthLoader: LoaderFunction = async () => {
   try {
     // check auth status
-    const authResponse = await api.get("/api/auth/me");
+    const authResponse = await api.get("/api/auth/me")
     if (!authResponse.data) {
-      return redirect("/auth");
+      return redirect("/auth")
     }
 
     // check spotify connection
-    const spotifyResponse = await api.get("/api/spotify/status");
+    const spotifyResponse = await api.get("/api/spotify/status")
     if (!spotifyResponse.data.is_connected) {
-      return redirect("/?spotify_required=true");
+      return redirect("/?spotify_required=true")
     }
 
-    return null;
+    return null
   } catch {
     // if any error occurs during auth or spotify check, redirect to auth
-    return redirect("/auth");
+    return redirect("/auth")
   }
-};
+}
 
 // create router with all routes
 const router = createBrowserRouter([
@@ -144,11 +174,11 @@ const router = createBrowserRouter([
         ),
         loader: async (args) => {
           // first check auth and spotify status
-          const result = await fullAuthLoader(args);
-          if (result) return result; // if it returns a redirect, pass it through
+          const result = await fullAuthLoader(args)
+          if (result) return result // if it returns a redirect, pass it through
 
           // if auth checks pass, load listening habits
-          return listeningHabitsLoader();
+          return listeningHabitsLoader()
         },
       },
       {
@@ -160,11 +190,11 @@ const router = createBrowserRouter([
         ),
         loader: async (args) => {
           // first check auth and spotify status
-          const result = await fullAuthLoader(args);
-          if (result) return result; // if it returns a redirect, pass it through
+          const result = await fullAuthLoader(args)
+          if (result) return result // if it returns a redirect, pass it through
 
           // if auth and spotify checks pass, load playlists
-          return playlistsLoader();
+          return playlistsLoader()
         },
       },
       {
@@ -176,11 +206,11 @@ const router = createBrowserRouter([
         ),
         loader: async (args) => {
           // first check auth and spotify status
-          const result = await fullAuthLoader(args);
-          if (result) return result; // if it returns a redirect, pass it through
+          const result = await fullAuthLoader(args)
+          if (result) return result // if it returns a redirect, pass it through
 
           // if auth and spotify checks pass, load playlist detail
-          return playlistDetailLoader(args);
+          return playlistDetailLoader(args)
         },
       },
       {
@@ -192,11 +222,11 @@ const router = createBrowserRouter([
         ),
         loader: async (args) => {
           // first check auth and spotify status
-          const result = await fullAuthLoader(args);
-          if (result) return result; // if it returns a redirect, pass it through
+          const result = await fullAuthLoader(args)
+          if (result) return result // if it returns a redirect, pass it through
 
           // load YouTube queue data
-          return playlistYouTubeQueueLoader(args);
+          return playlistYouTubeQueueLoader(args)
         },
       },
       {
@@ -216,11 +246,11 @@ const router = createBrowserRouter([
         ),
         loader: async (args) => {
           // first check auth and spotify status
-          const result = await fullAuthLoader(args);
-          if (result) return result; // if it returns a redirect, pass it through
+          const result = await fullAuthLoader(args)
+          if (result) return result // if it returns a redirect, pass it through
 
           // if auth checks pass, load recently played
-          return likedSongsLoader(args);
+          return likedSongsLoader(args)
         },
       },
       {
@@ -232,23 +262,43 @@ const router = createBrowserRouter([
         ),
         loader: async (args) => {
           // first check auth and spotify status
-          const result = await fullAuthLoader(args);
-          if (result) return result; // if it returns a redirect, pass it through
+          const result = await fullAuthLoader(args)
+          if (result) return result // if it returns a redirect, pass it through
 
           // if auth checks pass, load liked songs
-          return likedSongsLoader(args);
+          return likedSongsLoader(args)
         },
       },
       {
         path: "/recommendations",
-        element: <ProtectedRoute><Recommendations /></ProtectedRoute>,
+        element: (
+          <ProtectedRoute>
+            <Recommendations />
+          </ProtectedRoute>
+        ),
         loader: async (args) => {
           // first check auth and spotify status
           const result = await fullAuthLoader(args)
           if (result) return result // if it returns a redirect, pass it through
-          
+
           // load recommendations
           return recommendationsLoader()
+        },
+      },
+      {
+        path: "/recommendation-analysis",
+        element: (
+          <ProtectedRoute>
+            <RecommendationAnalysis />
+          </ProtectedRoute>
+        ),
+        loader: async (args) => {
+          // first check auth and spotify status
+          const result = await fullAuthLoader(args)
+          if (result) return result // if it returns a redirect, pass it through
+
+          // load recommendation analysis
+          return recommendationAnalysisLoader()
         },
       },
       {
@@ -260,11 +310,11 @@ const router = createBrowserRouter([
         ),
         loader: async (args) => {
           // first check auth and spotify status
-          const result = await fullAuthLoader(args);
-          if (result) return result; // if it returns a redirect, pass it through
+          const result = await fullAuthLoader(args)
+          if (result) return result // if it returns a redirect, pass it through
 
           // if auth checks pass, load friend's liked songs
-          return friendLikedSongsLoader(args);
+          return friendLikedSongsLoader(args)
         },
       },
       {
@@ -276,16 +326,16 @@ const router = createBrowserRouter([
         ),
         loader: async (args) => {
           // first check auth and spotify status
-          const result = await fullAuthLoader(args);
-          if (result) return result; // if it returns a redirect, pass it through
+          const result = await fullAuthLoader(args)
+          if (result) return result // if it returns a redirect, pass it through
 
           // if auth checks pass, load listening habits
-          return listeningHabitsLoader();
+          return listeningHabitsLoader()
         },
       },
     ],
   },
-]);
+])
 
 function Layout() {
   return (
@@ -294,17 +344,17 @@ function Layout() {
       <EmailVerificationBanner />
       <Outlet />
     </>
-  );
+  )
 }
 
 function EmailVerificationBanner() {
-  const { user } = useContext(AuthContext);
-  const location = useLocation();
-  const [isVisible, setIsVisible] = useState(true);
-  const [isResending, setIsResending] = useState(false);
+  const { user } = useContext(AuthContext)
+  const location = useLocation()
+  const [isVisible, setIsVisible] = useState(true)
+  const [isResending, setIsResending] = useState(false)
   const [resendStatus, setResendStatus] = useState<
     "idle" | "success" | "error"
-  >("idle");
+  >("idle")
 
   // don't show if: no user, email is verified, banner dismissed, or on verification page
   if (
@@ -313,23 +363,23 @@ function EmailVerificationBanner() {
     !isVisible ||
     location.pathname.startsWith("/verify-email")
   )
-    return null;
+    return null
 
   const handleResend = async () => {
-    setIsResending(true);
-    setResendStatus("idle");
+    setIsResending(true)
+    setResendStatus("idle")
     try {
-      await api.post("/api/auth/resend-verification");
-      setResendStatus("success");
+      await api.post("/api/auth/resend-verification")
+      setResendStatus("success")
     } catch (error) {
       if (process.env.NODE_ENV === "development") {
-        console.error("Failed to resend verification email:", error);
+        console.error("Failed to resend verification email:", error)
       }
-      setResendStatus("error");
+      setResendStatus("error")
     } finally {
-      setIsResending(false);
+      setIsResending(false)
     }
-  };
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
@@ -369,80 +419,80 @@ function EmailVerificationBanner() {
         </div>
       </div>
     </div>
-  );
+  )
 }
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, isLoading } = useContext(AuthContext);
-  const location = useLocation();
+  const { isAuthenticated, isLoading } = useContext(AuthContext)
+  const location = useLocation()
 
   if (isLoading) {
     return (
       <div className="h-screen w-screen flex items-center justify-center">
         <Spinner size="lg" />
       </div>
-    );
+    )
   }
 
   if (!isAuthenticated) {
-    return <Navigate to="/auth" state={{ from: location }} replace />;
+    return <Navigate to="/auth" state={{ from: location }} replace />
   }
 
-  return <>{children}</>;
+  return <>{children}</>
 }
 
 function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [user, setUser] = useState<User | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
+  const [user, setUser] = useState<User | null>(null)
 
   const checkAuth = async () => {
     try {
-      const response = await api.get("/api/auth/me");
+      const response = await api.get("/api/auth/me")
       if (response.data) {
-        setUser(response.data);
-        setIsAuthenticated(true);
+        setUser(response.data)
+        setIsAuthenticated(true)
       }
     } catch (error) {
       if (process.env.NODE_ENV === "development") {
-        console.error("Auth check failed:", error);
+        console.error("Auth check failed:", error)
       }
-      setIsAuthenticated(false);
-      setUser(null);
+      setIsAuthenticated(false)
+      setUser(null)
     } finally {
-      setIsLoading(false);
+      setIsLoading(false)
     }
-  };
+  }
 
   const login = async () => {
     try {
-      const response = await api.get("/api/auth/me");
+      const response = await api.get("/api/auth/me")
       if (response.data) {
-        setUser(response.data);
-        setIsAuthenticated(true);
+        setUser(response.data)
+        setIsAuthenticated(true)
       }
     } catch (error) {
       if (process.env.NODE_ENV === "development") {
-        console.error("Login check failed:", error);
+        console.error("Login check failed:", error)
       }
     }
-  };
+  }
 
   const logout = async () => {
     try {
-      await api.post("/api/auth/logout");
-      setIsAuthenticated(false);
-      setUser(null);
+      await api.post("/api/auth/logout")
+      setIsAuthenticated(false)
+      setUser(null)
     } catch (error) {
       if (process.env.NODE_ENV === "development") {
-        console.error("Logout failed:", error);
+        console.error("Logout failed:", error)
       }
     }
-  };
+  }
 
   useEffect(() => {
-    checkAuth();
-  }, []);
+    checkAuth()
+  }, [])
 
   return (
     <AuthContext.Provider
@@ -450,7 +500,7 @@ function App() {
     >
       <RouterProvider router={router} />
     </AuthContext.Provider>
-  );
+  )
 }
 
-export default App;
+export default App

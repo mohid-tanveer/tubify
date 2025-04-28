@@ -1,10 +1,24 @@
 import { useNavigate, useLoaderData } from "react-router-dom"
 import { TubifyTitle } from "@/components/ui/tubify-title"
 import { Button } from "@/components/ui/button"
-import { Globe, Lock, Music, ArrowLeft, Trash2, Plus, Loader2, Play, Shuffle } from "lucide-react"
+import {
+  Globe,
+  Lock,
+  Music,
+  ArrowLeft,
+  Trash2,
+  Plus,
+  Loader2,
+  Play,
+  Shuffle,
+} from "lucide-react"
 import { useState, useEffect } from "react"
 import api from "@/lib/axios"
-import { clearPlaylistsCache, clearPlaylistDetailCache, setPlaylistDetailCache } from "@/loaders/playlist-loaders"
+import {
+  clearPlaylistsCache,
+  clearPlaylistDetailCache,
+  setPlaylistDetailCache,
+} from "@/loaders/playlist-loaders"
 import { toast } from "sonner"
 import {
   Dialog,
@@ -46,7 +60,7 @@ interface Playlist {
 
 export default function PlaylistDetail() {
   const navigate = useNavigate()
-  const { playlist: initialPlaylist, error } = useLoaderData() as { 
+  const { playlist: initialPlaylist, error } = useLoaderData() as {
     playlist: Playlist | null
     error?: string
   }
@@ -61,19 +75,23 @@ export default function PlaylistDetail() {
   useEffect(() => {
     setPlaylist(initialPlaylist)
   }, [initialPlaylist])
-  
+
   // check if there are playable videos available
   useEffect(() => {
     if (!playlist || !playlist.songs || playlist.songs.length === 0) {
       setHasPlayableVideos(false)
       return
     }
-    
+
     const checkVideos = async () => {
       try {
         setCheckingVideos(true)
-        const response = await api.get(`/api/youtube/playlist/${playlist.public_id}/queue`)
-        setHasPlayableVideos(response.data.queue_items && response.data.queue_items.length > 0)
+        const response = await api.get(
+          `/api/youtube/playlist/${playlist.public_id}/queue`,
+        )
+        setHasPlayableVideos(
+          response.data.queue_items && response.data.queue_items.length > 0,
+        )
       } catch (error) {
         console.error("Failed to check for playable videos:", error)
         setHasPlayableVideos(false)
@@ -81,25 +99,25 @@ export default function PlaylistDetail() {
         setCheckingVideos(false)
       }
     }
-    
+
     checkVideos()
   }, [playlist])
 
   const handleDeletePlaylist = async () => {
     if (!playlist) return
-    
+
     try {
       setIsDeleting(true)
       await api.delete(`/api/playlists/${playlist.public_id}`)
-      
+
       // clear the cache when a playlist is deleted
       clearPlaylistsCache()
       clearPlaylistDetailCache(playlist.public_id)
-      
+
       setIsDialogOpen(false)
       navigate("/playlists")
     } catch (error) {
-      if (process.env.NODE_ENV === 'development') {
+      if (process.env.NODE_ENV === "development") {
         console.error("failed to delete playlist:", error)
       }
       toast.error("failed to delete playlist")
@@ -110,25 +128,25 @@ export default function PlaylistDetail() {
 
   const handleSongAdded = async () => {
     if (!playlist) return
-    
+
     // refresh playlist data
     try {
       const response = await api.get(`/api/playlists/${playlist.public_id}`)
       const updatedPlaylist = response.data
-      
+
       // update cache with new data
       setPlaylistDetailCache(playlist.public_id, { playlist: updatedPlaylist })
-      
+
       // clear main playlists cache to update song count
       clearPlaylistsCache()
-      
+
       // update local state
       setPlaylist(updatedPlaylist)
-      
+
       // close the dialog
       setIsAddSongDialogOpen(false)
     } catch (error) {
-      if (process.env.NODE_ENV === 'development') {
+      if (process.env.NODE_ENV === "development") {
         console.error("failed to refresh playlist:", error)
       }
       toast.error("failed to update playlist")
@@ -136,51 +154,51 @@ export default function PlaylistDetail() {
   }
 
   const handleSongRemoved = async () => {
-    if (!playlist) return;
-    
+    if (!playlist) return
+
     // refresh playlist data
     try {
-      const response = await api.get(`/api/playlists/${playlist.public_id}`);
-      const updatedPlaylist = response.data;
-      
+      const response = await api.get(`/api/playlists/${playlist.public_id}`)
+      const updatedPlaylist = response.data
+
       // update cache with new data
-      setPlaylistDetailCache(playlist.public_id, { playlist: updatedPlaylist });
-      
+      setPlaylistDetailCache(playlist.public_id, { playlist: updatedPlaylist })
+
       // clear main playlists cache to update song count
-      clearPlaylistsCache();
-      
+      clearPlaylistsCache()
+
       // update local state
-      setPlaylist(updatedPlaylist);
-      
+      setPlaylist(updatedPlaylist)
+
       // show success message
-      toast.success("song removed from playlist");
+      toast.success("song removed from playlist")
     } catch (error) {
-      if (process.env.NODE_ENV === 'development') {
-        console.error("failed to refresh playlist:", error);
+      if (process.env.NODE_ENV === "development") {
+        console.error("failed to refresh playlist:", error)
       }
-      toast.error("failed to update playlist view");
+      toast.error("failed to update playlist view")
     }
-  };
+  }
 
   const handleSongsReordered = (reorderedSongs: Song[]) => {
-    if (!playlist) return;
-    
+    if (!playlist) return
+
     // update local state with reordered songs
     setPlaylist({
       ...playlist,
-      songs: reorderedSongs
-    });
-  };
-  
+      songs: reorderedSongs,
+    })
+  }
+
   const handlePlayVideos = () => {
-    if (!playlist) return;
-    navigate(`/watch/${playlist.public_id}`);
-  };
-  
+    if (!playlist) return
+    navigate(`/watch/${playlist.public_id}`)
+  }
+
   const handleShufflePlay = () => {
-    if (!playlist) return;
-    navigate(`/watch/${playlist.public_id}?queue_type=shuffle`);
-  };
+    if (!playlist) return
+    navigate(`/watch/${playlist.public_id}?queue_type=shuffle`)
+  }
 
   if (!playlist) {
     return (
@@ -188,7 +206,7 @@ export default function PlaylistDetail() {
         <TubifyTitle />
         <div className="container mx-auto mt-4 pb-16">
           <div className="flex items-center gap-2">
-            <Button 
+            <Button
               variant="ghost"
               size="sm"
               onClick={() => navigate("/playlists")}
@@ -197,7 +215,7 @@ export default function PlaylistDetail() {
               back to playlists
             </Button>
           </div>
-          
+
           <div className="mt-8 text-center">
             <h1 className="text-2xl font-bold">playlist not found</h1>
             {error && <p className="mt-2 text-slate-400">{error}</p>}
@@ -232,7 +250,9 @@ export default function PlaylistDetail() {
                   alt={playlist.name}
                   className="h-full w-full object-cover"
                 />
-              ) : playlist.songs && playlist.songs.length > 0 && playlist.songs[0].album_art_url ? (
+              ) : playlist.songs &&
+                playlist.songs.length > 0 &&
+                playlist.songs[0].album_art_url ? (
                 <img
                   src={playlist.songs[0].album_art_url}
                   alt={playlist.name}
@@ -248,39 +268,45 @@ export default function PlaylistDetail() {
 
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-2xl md:text-3xl font-bold text-white">{playlist.name}</h1>
+              <h1 className="text-2xl md:text-3xl font-bold text-white">
+                {playlist.name}
+              </h1>
               {playlist.is_public ? (
                 <Globe className="h-4 w-4 text-slate-400" />
               ) : (
                 <Lock className="h-4 w-4 text-slate-400" />
               )}
             </div>
-            
+
             {playlist.description && (
               <p className="mt-2 text-slate-400">{playlist.description}</p>
             )}
-            
+
             <div className="mt-2 flex flex-wrap items-center gap-4 text-sm text-slate-500">
               <div className="flex items-center">
                 <Music className="mr-1 h-4 w-4" />
                 {playlist.songs ? playlist.songs.length : 0} songs
               </div>
-              
+
               {playlist.created_at && (
                 <div>
                   created {new Date(playlist.created_at).toLocaleDateString()}
                 </div>
               )}
-              
-              {playlist.updated_at && playlist.updated_at !== playlist.created_at && (
-                <div>
-                  updated {new Date(playlist.updated_at).toLocaleDateString()}
-                </div>
-              )}
+
+              {playlist.updated_at &&
+                playlist.updated_at !== playlist.created_at && (
+                  <div>
+                    updated {new Date(playlist.updated_at).toLocaleDateString()}
+                  </div>
+                )}
             </div>
 
             <div className="mt-4 flex flex-wrap gap-2">
-              <Dialog open={isAddSongDialogOpen} onOpenChange={setIsAddSongDialogOpen}>
+              <Dialog
+                open={isAddSongDialogOpen}
+                onOpenChange={setIsAddSongDialogOpen}
+              >
                 <DialogTrigger asChild>
                   <Button variant="spotify" className="text-white" size="sm">
                     <Plus className="mr-2 h-4 w-4" />
@@ -291,21 +317,25 @@ export default function PlaylistDetail() {
                   <DialogHeader>
                     <DialogTitle>add songs to playlist</DialogTitle>
                     <DialogDescription>
-                      <br/>
-                      search for songs on spotify and add them to your Tubify playlist.
+                      <br />
+                      search for songs on spotify and add them to your Tubify
+                      playlist.
                     </DialogDescription>
                   </DialogHeader>
                   <div className="mt-4">
-                    <SongSearch playlistPublicId={playlist.public_id} onSongAdded={handleSongAdded} />
+                    <SongSearch
+                      playlistPublicId={playlist.public_id}
+                      onSongAdded={handleSongAdded}
+                    />
                   </div>
                 </DialogContent>
               </Dialog>
-              
+
               {playlist.songs && playlist.songs.length > 0 && (
                 <>
-                  <Button 
-                    variant="default" 
-                    size="sm" 
+                  <Button
+                    variant="default"
+                    size="sm"
                     onClick={handlePlayVideos}
                     disabled={checkingVideos || !hasPlayableVideos}
                   >
@@ -316,10 +346,10 @@ export default function PlaylistDetail() {
                     )}
                     play videos
                   </Button>
-                  
-                  <Button 
-                    variant="secondary" 
-                    size="sm" 
+
+                  <Button
+                    variant="secondary"
+                    size="sm"
                     onClick={handleShufflePlay}
                     disabled={checkingVideos || !hasPlayableVideos}
                   >
@@ -328,7 +358,7 @@ export default function PlaylistDetail() {
                   </Button>
                 </>
               )}
-              
+
               <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                 <DialogTrigger asChild>
                   <Button variant="destructive" size="sm" disabled={isDeleting}>
@@ -340,17 +370,21 @@ export default function PlaylistDetail() {
                   <DialogHeader>
                     <DialogTitle>are you sure?</DialogTitle>
                     <DialogDescription>
-                      <br/>
-                      this action cannot be undone. this will permanently delete the
-                      playlist "{playlist.name}" and remove it from our servers.
+                      <br />
+                      this action cannot be undone. this will permanently delete
+                      the playlist "{playlist.name}" and remove it from our
+                      servers.
                     </DialogDescription>
                   </DialogHeader>
                   <DialogFooter className="mt-4">
-                    <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+                    <Button
+                      variant="outline"
+                      onClick={() => setIsDialogOpen(false)}
+                    >
                       cancel
                     </Button>
-                    <Button 
-                      variant="destructive" 
+                    <Button
+                      variant="destructive"
                       onClick={handleDeletePlaylist}
                       disabled={isDeleting}
                     >
@@ -384,7 +418,7 @@ export default function PlaylistDetail() {
           </div>
 
           {playlist.songs && playlist.songs.length > 0 ? (
-            <DraggableSongList 
+            <DraggableSongList
               songs={playlist.songs}
               playlistPublicId={playlist.public_id}
               onSongRemoved={handleSongRemoved}
@@ -394,8 +428,8 @@ export default function PlaylistDetail() {
             <div className="mt-8 text-center text-slate-400 pb-8">
               <Music className="mx-auto h-12 w-12 opacity-50" />
               <p className="mt-2">no songs in this playlist yet</p>
-              <Button 
-                variant="spotify" 
+              <Button
+                variant="spotify"
                 className="text-white mt-4"
                 onClick={() => setIsAddSongDialogOpen(true)}
               >
@@ -408,4 +442,4 @@ export default function PlaylistDetail() {
       </div>
     </div>
   )
-} 
+}

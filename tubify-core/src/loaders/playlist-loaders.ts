@@ -44,6 +44,7 @@ interface RecommendationsData {
   similar: RecommendedSong[]
   lyrical: RecommendedSong[]
   timestamp: number
+  analytics?: AnalyticsData
 }
 
 // define an interface for recommendation songs
@@ -66,6 +67,56 @@ interface RecommendedSong {
     friend_name: string
     friend_image: string
   }>
+}
+
+// define an interface for analytics data
+interface AnalyticsData {
+  taste_profile: {
+    tempo?: number
+    acousticness?: number
+    danceability?: number
+    energy?: number
+    valence?: number
+    speechiness?: number
+    instrumentalness?: number
+    liveness?: number
+    mode?: number
+    key?: number
+  }
+  total_liked_songs: number
+  top_genres?: Array<{ name: string; count: number }>
+  clusters?: {
+    num_clusters: number
+    song_points: Array<{
+      x: number
+      y: number
+      cluster: number
+    }>
+    centers: Array<{
+      x: number
+      y: number
+    }>
+  }
+  recommendation_success_rate?: number
+  positive_feedback?: number
+  negative_feedback?: number
+  feedback_stats?: {
+    total: number
+    positive: number
+    negative: number
+  }
+}
+
+// interface for feedback history item
+interface FeedbackItem {
+  song_id: string
+  song_name: string
+  artist_names: string
+  album_name: string
+  album_image_url: string
+  spotify_uri: string
+  liked: boolean
+  feedback_at: string
 }
 
 // cache keys
@@ -412,45 +463,120 @@ export async function recommendationsLoader() {
       isRecommendationsCacheValid(cachedRecommendations.timestamp)
     ) {
       return {
-        hybrid: cachedRecommendations.hybrid || [],
-        friends: cachedRecommendations.friends || [],
-        similar: cachedRecommendations.similar || [],
-        lyrical: cachedRecommendations.lyrical || [],
+        recommendations: {
+          hybrid: cachedRecommendations.hybrid || [],
+          friends: cachedRecommendations.friends || [],
+          similar: cachedRecommendations.similar || [],
+          lyrical: cachedRecommendations.lyrical || [],
+        },
+        analytics: cachedRecommendations.analytics || null,
       }
     }
 
-    // fetch hybrid recommendations
-    const hybridResponse = await api.get("/api/recommendations")
+    // fetch recommendations API endpoint which now includes analytics
+    const apiResponse = await api.get("/api/recommendations/api-response")
+    console.log("API response data:", apiResponse.data)
 
-    // fetch friends recommendations
-    const friendsResponse = await api.get("/api/recommendations/friends")
+    // handle both 'friends' and 'from_friends' keys for backward compatibility
+    const friendRecommendations =
+      apiResponse.data.recommendations.friends ||
+      apiResponse.data.recommendations.from_friends ||
+      []
 
-    // fetch similar recommendations
-    const similarResponse = await api.get("/api/recommendations/similar")
-
-    // fetch lyrical recommendations
-    const lyricalResponse = await api.get("/api/recommendations/lyrical")
+    const similarRecommendations =
+      apiResponse.data.recommendations.similar || []
 
     const recommendationsData = {
-      hybrid: hybridResponse.data.recommendations.hybrid || [],
-      friends: friendsResponse.data.recommendations || [],
-      similar: similarResponse.data.recommendations || [],
-      lyrical: lyricalResponse.data.recommendations || [],
+      hybrid: apiResponse.data.recommendations.hybrid || [],
+      friends: friendRecommendations,
+      similar: similarRecommendations,
+      lyrical: apiResponse.data.recommendations.lyrical || [],
+      analytics: apiResponse.data.analytics || null,
+    }
+
+    // if the API doesn't return analytics, fetch it separately
+    if (!recommendationsData.analytics) {
+      try {
+        const analyticsResponse = await api.get(
+          "/api/recommendations/analytics",
+        )
+        recommendationsData.analytics = analyticsResponse.data
+      } catch (error) {
+        console.error("Error fetching analytics data:", error)
+      }
     }
 
     // cache the recommendations data
     setRecommendationsCache(recommendationsData)
 
-    return recommendationsData
+    return {
+      recommendations: {
+        hybrid: recommendationsData.hybrid,
+        friends: recommendationsData.friends,
+        similar: recommendationsData.similar,
+        lyrical: recommendationsData.lyrical,
+      },
+      analytics: recommendationsData.analytics,
+    }
   } catch (error) {
     console.error("Error loading recommendations:", error)
+
+    // attempt to fetch analytics separately if main request fails
+    let analytics = null
+    try {
+      const analyticsResponse = await api.get("/api/recommendations/analytics")
+      analytics = analyticsResponse.data
+    } catch (analyticsError) {
+      console.error("Error fetching analytics data:", analyticsError)
+    }
+
     // return empty arrays on error to prevent the UI from breaking
     return {
-      hybrid: [],
-      friends: [],
-      similar: [],
-      lyrical: [],
-      error: "Failed to load recommendations",
+      recommendations: {
+        hybrid: [],
+        friends: [],
+        similar: [],
+        lyrical: [],
+        error: "Failed to load recommendations",
+      },
+      analytics,
+    }
+  }
+}
+
+// loader for recommendation analysis page
+export async function recommendationAnalysisLoader() {
+  try {
+    // attempt to fetch recommendation analysis
+    let feedback: FeedbackItem[] = []
+    let analytics: AnalyticsData | null = null
+
+    // fetch feedback data
+    try {
+      const feedbackResponse = await api.get("/api/recommendations/feedback")
+      feedback = feedbackResponse.data.feedback || []
+    } catch (feedbackError) {
+      console.error("Error fetching feedback history:", feedbackError)
+    }
+
+    // fetch analytics data
+    try {
+      const analyticsResponse = await api.get("/api/recommendations/analytics")
+      analytics = analyticsResponse.data
+    } catch (analyticsError) {
+      console.error("Error fetching analytics data:", analyticsError)
+    }
+
+    return {
+      feedback,
+      analytics,
+    }
+  } catch (error) {
+    console.error("Error loading feedback history:", error)
+    return {
+      feedback: [],
+      analytics: null,
+      error: "Failed to load feedback history",
     }
   }
 }

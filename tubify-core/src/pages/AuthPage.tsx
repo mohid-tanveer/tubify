@@ -17,7 +17,7 @@ import {
   FormMessage,
 } from "@/components/ui/form"
 import { Eye, EyeOff } from "lucide-react"
-import { toast } from 'sonner'
+import { toast } from "sonner"
 
 const loginSchema = z.object({
   email: z.string().min(1, "email or username is required"),
@@ -26,32 +26,37 @@ const loginSchema = z.object({
 
 const registerSchema = z.object({
   email: z.string().email("please enter a valid email address"),
-  username: z.string()
+  username: z
+    .string()
     .min(3, "username must be at least 3 characters")
     .max(50, "username must be less than 50 characters")
-    .regex(/^[a-zA-Z0-9._-]+$/, "username can only contain letters, numbers, periods, underscores, and hyphens"),
-  password: z.string()
+    .regex(
+      /^[a-zA-Z0-9._-]+$/,
+      "username can only contain letters, numbers, periods, underscores, and hyphens",
+    ),
+  password: z
+    .string()
     .min(8, "password must be at least 8 characters")
     .regex(
       /^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*#?&+])[A-Za-z\d@$!%*#?&+]{8,}$/,
-      "password must contain at least one letter, one number, and one special character"
+      "password must contain at least one letter, one number, and one special character",
     ),
 })
 
 type FormValues = {
-  email: string;
-  username?: string;
-  password: string;
+  email: string
+  username?: string
+  password: string
 }
 
 interface UserAuthFormProps extends React.HTMLAttributes<HTMLDivElement> {
-  type: "login" | "register";
+  type: "login" | "register"
   initialValues?: {
-    email: string;
-    username: string;
-    password: string;
-  };
-  onAuthTypeChange: (type: "login" | "register", values: FormValues) => void;
+    email: string
+    username: string
+    password: string
+  }
+  onAuthTypeChange: (type: "login" | "register", values: FormValues) => void
 }
 
 export default function AuthPage() {
@@ -62,33 +67,37 @@ export default function AuthPage() {
   const processingRef = useRef(false)
   const codeProcessedRef = useRef<string | null>(null)
   const [formValues, setFormValues] = useState<{
-    email: string;
-    username: string;
-    password: string;
+    email: string
+    username: string
+    password: string
   }>({
     email: "",
     username: "",
-    password: ""
+    password: "",
   })
 
-  const handleAuthTypeChange = (newType: "login" | "register", currentValues: FormValues) => {
+  const handleAuthTypeChange = (
+    newType: "login" | "register",
+    currentValues: FormValues,
+  ) => {
     setFormValues({
       email: currentValues.email !== undefined ? currentValues.email : "",
-      username: currentValues.username !== undefined ? currentValues.username : "",
-      password: currentValues.password || ""
+      username:
+        currentValues.username !== undefined ? currentValues.username : "",
+      password: currentValues.password || "",
     })
-    
+
     if (newType === "register" && authType === "login" && currentValues.email) {
       const emailValue = currentValues.email
-      if (!emailValue.includes('@')) {
+      if (!emailValue.includes("@")) {
         setFormValues({
           email: "",
           username: emailValue,
-          password: currentValues.password || ""
+          password: currentValues.password || "",
         })
       }
     }
-    
+
     setAuthType(newType)
   }
 
@@ -101,7 +110,7 @@ export default function AuthPage() {
     if (error) {
       toast.error(`Authentication failed`, {
         duration: 10000,
-        id: "oauth-error"
+        id: "oauth-error",
       })
       navigate("/auth")
       return
@@ -113,22 +122,22 @@ export default function AuthPage() {
         if (processingRef.current) return
         processingRef.current = true
         codeProcessedRef.current = code
-        
+
         // immediately clear the URL to prevent reuse of the code
         window.history.replaceState({}, document.title, "/auth")
-        
+
         // create a single toast with an ID
         const toastId = toast.loading("Processing authentication...", {
-          id: "oauth-processing"
+          id: "oauth-processing",
         })
 
         try {
           const provider = location.pathname.includes("google")
             ? "google"
             : "github"
-            
+
           const response = await api.get(`/api/auth/${provider}/callback`, {
-            params: { code }
+            params: { code },
           })
 
           if (response.data?.message === "Authentication successful") {
@@ -142,18 +151,20 @@ export default function AuthPage() {
         } catch (error) {
           // dismiss the loading toast
           toast.dismiss(toastId)
-          
+
           if (process.env.NODE_ENV === "development") {
             console.error("OAuth callback failed:", error)
           }
           const axiosError = error as AxiosError<{ detail: string }>
-          const errorMessage = axiosError.response?.data?.detail || "Authentication failed. Please try again."
+          const errorMessage =
+            axiosError.response?.data?.detail ||
+            "Authentication failed. Please try again."
           if (process.env.NODE_ENV === "development") {
             console.error("Detailed error:", errorMessage)
           }
           toast.error("Oauth authentication failed. Please try again.", {
             duration: 10000,
-            id: "oauth-error"
+            id: "oauth-error",
           })
         } finally {
           // dismiss the loading toast if it's still showing
@@ -163,11 +174,11 @@ export default function AuthPage() {
           }, 2000) // add a delay before allowing another processing
         }
       }
-      
+
       handleOAuthCallback()
     }
   }, [location, login, navigate])
-  
+
   return (
     <div className="grid min-h-screen lg:grid-cols-2">
       <div className="hidden lg:block bg-zinc-900">
@@ -205,21 +216,22 @@ export default function AuthPage() {
               {authType === "login" ? "Welcome back" : "Create an account"}
             </h1>
             <p className="text-sm">
-              {authType === "login" 
-                ? "Enter your credentials to sign in" 
+              {authType === "login"
+                ? "Enter your credentials to sign in"
                 : "Enter your information to create an account"}
             </p>
           </div>
-          <UserAuthForm 
-            type={authType} 
+          <UserAuthForm
+            type={authType}
             initialValues={formValues}
             onAuthTypeChange={handleAuthTypeChange}
           />
           <p className="px-8 text-center text-sm">
             {authType === "login" ? (
               <>
-                <br />Don't have an account?&nbsp;&nbsp;
-                <Button 
+                <br />
+                Don't have an account?&nbsp;&nbsp;
+                <Button
                   variant="outline"
                   onClick={() => handleAuthTypeChange("register", formValues)}
                 >
@@ -228,8 +240,9 @@ export default function AuthPage() {
               </>
             ) : (
               <>
-                <br />Have an account?&nbsp;&nbsp;
-                <Button 
+                <br />
+                Have an account?&nbsp;&nbsp;
+                <Button
                   variant="outline"
                   onClick={() => handleAuthTypeChange("login", formValues)}
                 >
@@ -244,7 +257,12 @@ export default function AuthPage() {
   )
 }
 
-function UserAuthForm({ type, initialValues, onAuthTypeChange, ...props }: UserAuthFormProps): JSX.Element {
+function UserAuthForm({
+  type,
+  initialValues,
+  onAuthTypeChange,
+  ...props
+}: UserAuthFormProps): JSX.Element {
   const [isLoading, setIsLoading] = useState<boolean>(false)
   const [showPassword, setShowPassword] = useState(false)
   const [isCheckingUsername, setIsCheckingUsername] = useState(false)
@@ -257,7 +275,9 @@ function UserAuthForm({ type, initialValues, onAuthTypeChange, ...props }: UserA
     resolver: zodResolver(type === "login" ? loginSchema : registerSchema),
     defaultValues: {
       email: initialValues?.email || "",
-      ...(type === "register" ? { username: initialValues?.username || "" } : {}),
+      ...(type === "register"
+        ? { username: initialValues?.username || "" }
+        : {}),
       password: initialValues?.password || "",
     },
     mode: "onChange",
@@ -265,13 +285,18 @@ function UserAuthForm({ type, initialValues, onAuthTypeChange, ...props }: UserA
 
   useEffect(() => {
     if (initialValues && (formInitialized.current || type !== "login")) {
-      form.reset({
-        email: initialValues.email || "",
-        ...(type === "register" ? { username: initialValues.username || "" } : {}),
-        password: initialValues.password || "",
-      }, { keepValues: false })
+      form.reset(
+        {
+          email: initialValues.email || "",
+          ...(type === "register"
+            ? { username: initialValues.username || "" }
+            : {}),
+          password: initialValues.password || "",
+        },
+        { keepValues: false },
+      )
     }
-    formInitialized.current = true;
+    formInitialized.current = true
   }, [initialValues, type, form])
 
   useEffect(() => {
@@ -280,14 +305,15 @@ function UserAuthForm({ type, initialValues, onAuthTypeChange, ...props }: UserA
         onAuthTypeChange(type, {
           email: value.email || "",
           username: value.username || "",
-          password: value.password || ""
-        });
+          password: value.password || "",
+        })
       }
-    });
-    return () => subscription.unsubscribe();
-  }, [form, type, onAuthTypeChange]);
+    })
+    return () => subscription.unsubscribe()
+  }, [form, type, onAuthTypeChange])
 
-  const watchedUsername = type === "register" ? form.watch("username") || "" : ""
+  const watchedUsername =
+    type === "register" ? form.watch("username") || "" : ""
 
   // check username availability
   useEffect(() => {
@@ -302,13 +328,13 @@ function UserAuthForm({ type, initialValues, onAuthTypeChange, ...props }: UserA
     usernameCheckTimeout.current = setTimeout(async () => {
       try {
         const response = await api.get(`/api/auth/check-username/${username}`)
-        
-        await new Promise(resolve => setTimeout(resolve, 100))
-        
+
+        await new Promise((resolve) => setTimeout(resolve, 100))
+
         if (!response.data.available) {
           form.setError("username", {
             type: "manual",
-            message: "this username is already taken"
+            message: "this username is already taken",
           })
         }
       } catch (error) {
@@ -333,31 +359,32 @@ function UserAuthForm({ type, initialValues, onAuthTypeChange, ...props }: UserA
     if (!isValid) {
       return
     }
-    
+
     onAuthTypeChange(type, form.getValues())
-    
+
     setIsLoading(true)
 
     try {
-      const endpoint = type === "login" ? "/api/auth/login" : "/api/auth/register"
-      
+      const endpoint =
+        type === "login" ? "/api/auth/login" : "/api/auth/register"
+
       if (type === "login") {
         try {
           // for login, use URLSearchParams format as required by OAuth2PasswordRequestForm
           const params = new URLSearchParams()
           params.append("username", data.email)
           params.append("password", data.password)
-          
+
           const response = await api.post(endpoint, params, {
             headers: {
-              'Content-Type': 'application/x-www-form-urlencoded'
-            }
+              "Content-Type": "application/x-www-form-urlencoded",
+            },
           })
-          
+
           if (!response.data?.access_token) {
             throw new Error("no access token received")
           }
-          
+
           // only navigate if login is successful
           await login()
           navigate("/")
@@ -365,20 +392,21 @@ function UserAuthForm({ type, initialValues, onAuthTypeChange, ...props }: UserA
           if (process.env.NODE_ENV === "development") {
             console.error("login error:", err)
           }
-          
+
           // prevent any navigation for a few seconds
           setIsLoading(false)
-          
+
           if (err instanceof AxiosError) {
-            const errorMessage = err.response?.data?.detail || "authentication failed"
+            const errorMessage =
+              err.response?.data?.detail || "authentication failed"
             toast.error(errorMessage, {
-              duration: 10000, 
-              id: "login-error"
+              duration: 10000,
+              id: "login-error",
             })
           } else {
             toast.error("something went wrong with login", {
               duration: 10000,
-              id: "login-error" 
+              id: "login-error",
             })
           }
 
@@ -395,22 +423,23 @@ function UserAuthForm({ type, initialValues, onAuthTypeChange, ...props }: UserA
           if (process.env.NODE_ENV === "development") {
             console.error("registration error:", err)
           }
-          
+
           setIsLoading(false)
-          
+
           if (err instanceof AxiosError) {
-            const errorMessage = err.response?.data?.detail || "registration failed"
+            const errorMessage =
+              err.response?.data?.detail || "registration failed"
             toast.error(errorMessage, {
-              duration: 10000, 
-              id: "registration-error"
+              duration: 10000,
+              id: "registration-error",
             })
           } else {
             toast.error("something went wrong with registration", {
-              duration: 10000, 
-              id: "registration-error"
+              duration: 10000,
+              id: "registration-error",
             })
           }
-          
+
           return
         }
       }
@@ -418,14 +447,14 @@ function UserAuthForm({ type, initialValues, onAuthTypeChange, ...props }: UserA
       if (process.env.NODE_ENV === "development") {
         console.error("form submission error:", err)
       }
-      
+
       setIsLoading(false)
-      
+
       toast.error("something went wrong with the form submission", {
-        duration: 10000, 
-        id: "form-error"
+        duration: 10000,
+        id: "form-error",
       })
-      
+
       return
     } finally {
       setIsLoading(false)
@@ -440,10 +469,10 @@ function UserAuthForm({ type, initialValues, onAuthTypeChange, ...props }: UserA
       if (process.env.NODE_ENV === "development") {
         console.error(err)
       }
-      
+
       toast.error("failed to initialize oauth login", {
-        duration: 10000, 
-        id: "oauth-error"
+        duration: 10000,
+        id: "oauth-error",
       })
     }
   }
@@ -468,7 +497,7 @@ function UserAuthForm({ type, initialValues, onAuthTypeChange, ...props }: UserA
                         autoCapitalize="none"
                         autoCorrect="off"
                         disabled={isLoading}
-                        className={`${form.formState.errors.username ? 'border-red-500 hover:border-red-600 focus:border-red-600' : ''}`}
+                        className={`${form.formState.errors.username ? "border-red-500 hover:border-red-600 focus:border-red-600" : ""}`}
                       />
                       {isCheckingUsername && (
                         <Icons.spinner className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-gray-500" />
@@ -480,7 +509,7 @@ function UserAuthForm({ type, initialValues, onAuthTypeChange, ...props }: UserA
               )}
             />
           )}
-          
+
           <FormField
             control={form.control}
             name="email"
@@ -492,20 +521,24 @@ function UserAuthForm({ type, initialValues, onAuthTypeChange, ...props }: UserA
                 <FormControl>
                   <Input
                     {...field}
-                    placeholder={type === "login" ? "name@example.com or username" : "name@example.com"}
+                    placeholder={
+                      type === "login"
+                        ? "name@example.com or username"
+                        : "name@example.com"
+                    }
                     type={type === "login" ? "text" : "email"}
                     autoCapitalize="none"
                     autoComplete={type === "login" ? "username" : "email"}
                     autoCorrect="off"
                     disabled={isLoading}
-                    className={`text-white ${form.formState.errors.email ? 'border-red-500 hover:border-red-600 focus:border-red-600' : ''}`}
+                    className={`text-white ${form.formState.errors.email ? "border-red-500 hover:border-red-600 focus:border-red-600" : ""}`}
                   />
                 </FormControl>
                 <FormMessage className="text-red-500" />
               </FormItem>
             )}
           />
-          
+
           <FormField
             control={form.control}
             name="password"
@@ -519,9 +552,11 @@ function UserAuthForm({ type, initialValues, onAuthTypeChange, ...props }: UserA
                       placeholder="********"
                       type={showPassword ? "text" : "password"}
                       autoCapitalize="none"
-                      autoComplete={type === "login" ? "current-password" : "new-password"}
+                      autoComplete={
+                        type === "login" ? "current-password" : "new-password"
+                      }
                       disabled={isLoading}
-                      className={`pr-10 ${form.formState.errors.password ? 'border-red-500 hover:border-red-600 focus:border-red-600' : ''}`}
+                      className={`pr-10 ${form.formState.errors.password ? "border-red-500 hover:border-red-600 focus:border-red-600" : ""}`}
                     />
                     <Button
                       type="button"
@@ -541,7 +576,7 @@ function UserAuthForm({ type, initialValues, onAuthTypeChange, ...props }: UserA
                 </FormControl>
                 <FormMessage className="text-red-500" />
                 {type === "login" && (
-                  <Link 
+                  <Link
                     to="/reset-password"
                     className="text-sm text-white hover:text-slate-300 block mt-2"
                   >
@@ -551,10 +586,10 @@ function UserAuthForm({ type, initialValues, onAuthTypeChange, ...props }: UserA
               </FormItem>
             )}
           />
-          
-          <Button 
-            type="button" 
-            className="w-full" 
+
+          <Button
+            type="button"
+            className="w-full"
             disabled={isLoading}
             onClick={(e) => {
               e.preventDefault()
@@ -576,14 +611,12 @@ function UserAuthForm({ type, initialValues, onAuthTypeChange, ...props }: UserA
           <span className="w-full border-t border-neutral-900" />
         </div>
         <div className="relative flex justify-center text-xs uppercase">
-          <span className="bg-black px-2">
-            Or continue with
-          </span>
+          <span className="bg-black px-2">Or continue with</span>
         </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
-        <Button 
+        <Button
           onClick={() => handleOAuthLogin("google")}
           variant="outline"
           disabled={isLoading}
@@ -595,9 +628,9 @@ function UserAuthForm({ type, initialValues, onAuthTypeChange, ...props }: UserA
           )}
           Google
         </Button>
-        <Button 
-          onClick={() => handleOAuthLogin("github")} 
-          variant='outline' 
+        <Button
+          onClick={() => handleOAuthLogin("github")}
+          variant="outline"
           disabled={isLoading}
           className="bg-black hover:bg-neutral-900 border-slate-800 hover:border-slate-600 hover:text-slate-300 text-white"
         >

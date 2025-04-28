@@ -1,15 +1,15 @@
-import { useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
-import api from '@/lib/axios'
+import { useState } from "react"
+import { useNavigate, Link } from "react-router-dom"
+import api from "@/lib/axios"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Icons } from "@/components/icons"
 
 export default function RequestReset() {
-  const [email, setEmail] = useState('')
+  const [email, setEmail] = useState("")
   const [isLoading, setIsLoading] = useState(false)
-  const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle')
+  const [status, setStatus] = useState<"idle" | "success" | "error">("idle")
   const navigate = useNavigate()
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -17,13 +17,15 @@ export default function RequestReset() {
     setIsLoading(true)
 
     try {
-      await api.post(`/api/auth/reset-password/request?email=${encodeURIComponent(email)}`)
-      setStatus('success')
+      await api.post(
+        `/api/auth/reset-password/request?email=${encodeURIComponent(email)}`,
+      )
+      setStatus("success")
     } catch (error) {
       if (process.env.NODE_ENV === "development") {
-        console.error('Password reset request failed:', error)
+        console.error("Password reset request failed:", error)
       }
-      setStatus('error')
+      setStatus("error")
     } finally {
       setIsLoading(false)
     }
@@ -66,15 +68,18 @@ export default function RequestReset() {
               Reset your password
             </h1>
             <p className="text-sm text-white">
-              Enter your email address and we'll send you a link to reset your password.
+              Enter your email address and we'll send you a link to reset your
+              password.
             </p>
           </div>
 
           <div className="mt-8">
-            {status === 'idle' && (
+            {status === "idle" && (
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="email" className="text-white">Email</Label>
+                  <Label htmlFor="email" className="text-white">
+                    Email
+                  </Label>
                   <Input
                     id="email"
                     placeholder="name@example.com"
@@ -88,8 +93,8 @@ export default function RequestReset() {
                     className="text-white"
                   />
                 </div>
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   disabled={isLoading}
                   className="w-full hover:border-slate-800"
                 >
@@ -101,7 +106,7 @@ export default function RequestReset() {
               </form>
             )}
 
-            {status === 'success' && (
+            {status === "success" && (
               <div className="flex flex-col space-y-2 text-center">
                 <h2 className="text-xl font-semibold tracking-tight text-green-400">
                   Check your email
@@ -111,7 +116,7 @@ export default function RequestReset() {
                 </p>
                 <Button
                   className="bg-black hover:bg-neutral-900 border-slate-800 hover:border-slate-600 hover:text-slate-300 text-white"
-                  onClick={() => navigate('/auth')}
+                  onClick={() => navigate("/auth")}
                   variant="outline"
                 >
                   Back to Sign In
@@ -119,7 +124,7 @@ export default function RequestReset() {
               </div>
             )}
 
-            {status === 'error' && (
+            {status === "error" && (
               <div className="flex flex-col space-y-2 text-center">
                 <h2 className="text-xl font-semibold tracking-tight text-red-500">
                   Something went wrong
@@ -129,7 +134,7 @@ export default function RequestReset() {
                 </p>
                 <Button
                   className="bg-black hover:bg-neutral-900 border-slate-800 hover:border-slate-600 hover:text-slate-300 text-white"
-                  onClick={() => setStatus('idle')}
+                  onClick={() => setStatus("idle")}
                   variant="outline"
                 >
                   Try Again
@@ -142,7 +147,7 @@ export default function RequestReset() {
             <Button
               variant="ghost"
               className="bg-black hover:bg-neutral-900 border-slate-800 hover:border-slate-600 hover:text-slate-300 text-white"
-              onClick={() => navigate('/auth')}
+              onClick={() => navigate("/auth")}
             >
               Back to Sign In
             </Button>
@@ -151,4 +156,4 @@ export default function RequestReset() {
       </div>
     </div>
   )
-} 
+}

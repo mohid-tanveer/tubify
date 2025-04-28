@@ -96,22 +96,34 @@ def extract_audio_features(file_path):
         y, sr = librosa.load(file_path, sr=None, mono=True)
 
         # use GPU if available for computationally intensive operations
+        gpu_failed = False
         if HAS_GPU:
-            # transfer audio data to GPU
-            y_gpu = cp.asarray(y)
+            try:
+                # transfer audio data to GPU
+                y_gpu = cp.asarray(y)
 
-            # FFT on GPU (for chroma and spectral features)
-            D = cp.abs(cp.fft.rfft(y_gpu))
+                # FFT on GPU (for chroma and spectral features)
+                D = cp.abs(cp.fft.rfft(y_gpu))
 
-            # convert back to numpy for librosa compatibility
-            D_np = cp.asnumpy(D)
-            del D  # free GPU memory
+                # convert back to numpy for librosa compatibility
+                D_np = cp.asnumpy(D)
+                del D  # free GPU memory
 
-            # release GPU memory
-            del y_gpu
+                # release GPU memory
+                del y_gpu
 
-            # continue with CPU operations using D_np where needed
+                # continue with CPU operations using D_np where needed
+            except Exception as e:
+                # log the error and fall back to CPU processing
+                logger.warning(
+                    f"gpu processing failed for {file_path}, falling back to cpu: {e}"
+                )
+                gpu_failed = True
+                cp.get_default_memory_pool().free_all_blocks()  # clear GPU memory
         else:
+            gpu_failed = True
+
+        if gpu_failed:
             D_np = None  # not used in CPU path
 
         # extract features
@@ -257,7 +269,10 @@ def extract_audio_features(file_path):
         )
 
         # clear large variables to free memory
-        del y, harmonic, pulse, onset_env
+        for var in ["y", "y_harmonic", "pulse", "onset_env"]:
+            if var in locals():
+                del locals()[var]
+
         if HAS_GPU:
             cp.get_default_memory_pool().free_all_blocks()
 
