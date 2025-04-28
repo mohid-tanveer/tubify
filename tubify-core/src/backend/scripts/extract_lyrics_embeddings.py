@@ -20,9 +20,9 @@ load_dotenv()
 GENIUS_TOKEN = os.getenv("GENIUS_API_TOKEN")
 DATABASE_URL = os.getenv("DATABASE_URL")
 if not GENIUS_TOKEN:
-    raise RuntimeError("Genius API token missing. Set GENIUS_API_TOKEN in .env.")
+    raise RuntimeError("genius api token missing. set GENIUS_API_TOKEN in .env.")
 if not DATABASE_URL:
-    raise RuntimeError("DATABASE_URL missing. Set DATABASE_URL in .env.")
+    raise RuntimeError("database_url missing. set DATABASE_URL in .env.")
 
 # embedding model settings
 EMBEDDING_MODEL_NAME = "sentence-transformers/all-mpnet-base-v2"
@@ -123,7 +123,7 @@ async def fetch_lyrics(song: str, artist: str) -> Optional[str]:
                         save_pickle(CACHE_FILE, cache)
                     return lyrics
         except Exception as e:
-            logger.warning(f"Genius fetch error for '{song}': {e}")
+            logger.warning(f"genius fetch error for '{song}': {e}")
     return None
 
 
@@ -167,6 +167,11 @@ async def producer(
             """,
             {"id": sid},
         )
+        if not row:
+            logger.warning(f"song id {sid} not found in database")
+            processed.add(sid)
+            continue
+
         song, artist = row["name"], row["artists"].split(",")[0]
         lyrics = await fetch_lyrics(song, artist)
         if lyrics:
@@ -174,10 +179,14 @@ async def producer(
         else:
             await store_embedding(db, sid, "", [])
             processed.add(sid)
+            save_pickle(PROCESSED_FILE, processed)
+            logger.info(f"saved {len(processed)} processed ids to {PROCESSED_FILE}")
 
 
 async def consumer(in_q: asyncio.Queue, db: Database, processed: Set[str], model):
     pending = []
+    processed_count = 0
+
     while True:
         try:
             sid, lyrics = await asyncio.wait_for(in_q.get(), timeout=2)
@@ -204,32 +213,60 @@ async def consumer(in_q: asyncio.Queue, db: Database, processed: Set[str], model
             final_emb = np.mean(parts, axis=0).tolist() if parts else []
             await store_embedding(db, sid, lyrics_list[i], final_emb)
             processed.add(sid)
+            processed_count += 1
+
+            # save processed set periodically
+            save_pickle(PROCESSED_FILE, processed)
+            logger.info(f"saved {len(processed)} processed ids to {PROCESSED_FILE}")
+
         pending.clear()
 
 
 async def main():
     processed = set(load_pickle(PROCESSED_FILE, set()))
-    cache_data = load_pickle(CACHE_FILE, {})
+    logger.info(f"loaded {len(processed)} already processed ids from {PROCESSED_FILE}")
 
     db = Database(DATABASE_URL)
     await db.connect()
 
-    logger.info(f"Loading embedding model: {EMBEDDING_MODEL_NAME} on {DEVICE}")
+    # check how many songs are in the database vs how many we've processed
+    total_songs = await db.fetch_val("SELECT COUNT(*) FROM songs")
+    total_processed_in_db = await db.fetch_val("SELECT COUNT(*) FROM song_lyrics")
+    logger.info(
+        f"total songs in database: {total_songs}, already processed in db: {total_processed_in_db}"
+    )
+
+    logger.info(f"loading embedding model: {EMBEDDING_MODEL_NAME} on {DEVICE}")
     model = SentenceTransformer(EMBEDDING_MODEL_NAME, device=DEVICE)
 
     ids = [r["id"] for r in await db.fetch_all("SELECT id FROM songs")]
     queue = asyncio.Queue(maxsize=BATCH_SIZE * 2)
 
-    prod_task = asyncio.create_task(producer(ids, db, queue, processed))
-    cons_task = asyncio.create_task(consumer(queue, db, processed, model))
+    try:
+        prod_task = asyncio.create_task(producer(ids, db, queue, processed))
+        cons_task = asyncio.create_task(consumer(queue, db, processed, model))
 
-    await prod_task
-    await asyncio.sleep(2)
-    cons_task.cancel()
+        await prod_task
+        await asyncio.sleep(2)
+        cons_task.cancel()
 
-    save_pickle(PROCESSED_FILE, processed)
-    save_pickle(CACHE_FILE, cache)
-    await db.disconnect()
+        try:
+            await cons_task
+        except asyncio.CancelledError:
+            pass
+
+    finally:
+        # always save the processed set at the end
+        save_pickle(PROCESSED_FILE, processed)
+        logger.info(
+            f"saved final set of {len(processed)} processed ids to {PROCESSED_FILE}"
+        )
+
+        # save cache too
+        save_pickle(CACHE_FILE, cache)
+        logger.info(f"saved lyrics cache with {len(cache)} entries to {CACHE_FILE}")
+
+        await db.disconnect()
 
 
 if __name__ == "__main__":
