@@ -497,6 +497,8 @@ async def main():
         print(
             f"{Colors.GREEN}Found {len(songs)} songs without YouTube videos. Processing in unsupervised mode...{Colors.END}"
         )
+        # # reverse the songs list
+        # songs.reverse()
 
         # create a log file to track progress
         log_file = f"video_import_log_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
