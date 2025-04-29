@@ -1,44 +1,17 @@
-from fastapi import APIRouter, HTTPException, status, Depends
-from pydantic import BaseModel, Field, field_validator
+from fastapi import APIRouter, HTTPException, Depends, Query, status
 from typing import Optional, List
 from auth import get_current_user, User
 from database import database
-import urllib.parse
-import re
-import os
-from dotenv import load_dotenv
-
-
-class SongReview(BaseModel):
-    id: int
-    user_id: int
-    song_id: str
-    rating: int = Field(..., ge=1, le=5)  # Rating between 1 and 5
-    review_text: Optional[str] = None
-    created_at: Optional[str] = None
-    updated_at: Optional[str] = None
-
-
-class AlbumReview(BaseModel):
-    id: int
-    user_id: int
-    album_id: str
-    rating: int = Field(..., ge=1, le=5)  # Rating between 1 and 5
-    review_text: Optional[str] = None
-    created_at: Optional[str] = None
-    updated_at: Optional[str] = None
-
 
 router = APIRouter(prefix="/api/reviews", tags=["reviews"])
 
 
-# Add a song review
-@router.post("/songs", response_model=SongReview)
+@router.post("/songs")
 async def add_song_review(
-    song_id: str,
-    rating: int,
+    song_id: str = Query(...),
+    rating: int = Query(..., ge=1, le=5),
     review_text: Optional[str] = None,
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_current_user, use_cache=False),
 ):
     try:
         review_id = await database.execute(
@@ -62,105 +35,38 @@ async def add_song_review(
             "review_text": review_text,
         }
     except Exception as e:
-        raise HTTPException(status_code=400, detail="Failed to add song review")
+        raise HTTPException(status_code=400, detail=f"Failed to add song review: {e}")
 
 
-# Add an album review
-@router.post("/albums", response_model=AlbumReview)
-async def add_album_review(
-    album_id: str,
-    rating: int,
-    review_text: Optional[str] = None,
-    user: User = Depends(get_current_user),
-):
+@router.get("/all")
+async def get_all_reviews(user: User = Depends(get_current_user)):
+    """Get all reviews from the user and their friends, sorted by recency."""
     try:
-        review_id = await database.execute(
-            """
-            INSERT INTO album_reviews (user_id, album_id, rating, review_text)
-            VALUES (:user_id, :album_id, :rating, :review_text)
-            RETURNING id
-            """,
-            {
-                "user_id": user.id,
-                "album_id": album_id,
-                "rating": rating,
-                "review_text": review_text,
-            },
-        )
-        return {
-            "id": review_id,
-            "user_id": user.id,
-            "album_id": album_id,
-            "rating": rating,
-            "review_text": review_text,
-        }
-    except Exception as e:
-        raise HTTPException(status_code=400, detail="Failed to add album review")
-
-
-# Get reviews for a specific user
-@router.get("/user/{username}", response_model=List[SongReview])
-async def get_user_reviews(username: str):
-    user = await database.fetch_one(
-        "SELECT id FROM users WHERE username = :username", {"username": username}
-    )
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    song_reviews = await database.fetch_all(
+        query = """
+            SELECT 
+                r.id,
+                r.user_id,
+                r.song_id,
+                r.rating,
+                r.review_text,
+                r.created_at,
+                u.username,
+                s.name as song_name,
+                al.name as album_name,
+                al.image_url as album_art_url
+            FROM song_reviews r
+            JOIN users u ON r.user_id = u.id
+            JOIN songs s ON r.song_id = s.id
+            JOIN albums al ON s.album_id = al.id
+            WHERE r.user_id = :user_id 
+                OR r.user_id IN (
+                    SELECT friend_id 
+                    FROM friendships 
+                    WHERE user_id = :user_id
+                )
+            ORDER BY r.created_at DESC
         """
-        SELECT * FROM song_reviews WHERE user_id = :user_id
-        """,
-        {"user_id": user["id"]},
-    )
-
-    album_reviews = await database.fetch_all(
-        """
-        SELECT * FROM album_reviews WHERE user_id = :user_id
-        """,
-        {"user_id": user["id"]},
-    )
-
-    return {"song_reviews": song_reviews, "album_reviews": album_reviews}
-
-
-# Get all reviews (for the public reviews page)
-@router.get("/", response_model=List[SongReview])
-async def get_all_reviews():
-    song_reviews = await database.fetch_all("SELECT * FROM song_reviews")
-    album_reviews = await database.fetch_all("SELECT * FROM album_reviews")
-    return {"song_reviews": song_reviews, "album_reviews": album_reviews}
-
-
-# Get all reviews for a specific song
-@router.get("/songs/{song_id}", response_model=List[SongReview])
-async def get_song_reviews(song_id: str):
-    try:
-        song_reviews = await database.fetch_all(
-            """
-            SELECT * FROM song_reviews
-            WHERE song_id = :song_id
-            ORDER BY created_at DESC
-            """,
-            {"song_id": song_id},
-        )
-        return [dict(review) for review in song_reviews]
+        reviews = await database.fetch_all(query, {"user_id": user.id})
+        return reviews
     except Exception as e:
-        raise HTTPException(status_code=500, detail="Failed to fetch song reviews")
-
-
-# Get all reviews for a specific album
-@router.get("/albums/{album_id}", response_model=List[AlbumReview])
-async def get_album_reviews(album_id: str):
-    try:
-        album_reviews = await database.fetch_all(
-            """
-            SELECT * FROM album_reviews
-            WHERE album_id = :album_id
-            ORDER BY created_at DESC
-            """,
-            {"album_id": album_id},
-        )
-        return [dict(review) for review in album_reviews]
-    except Exception as e:
-        raise HTTPException(status_code=500, detail="Failed to fetch album reviews")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch reviews: {e}")

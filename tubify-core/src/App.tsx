@@ -19,6 +19,7 @@ import {
   recommendationsLoader
 } from './loaders'
 import './App.css'
+import ReadReviews from "./pages/ReadReviews";
 
 interface User {
   id: number;
@@ -292,6 +293,10 @@ const router = createBrowserRouter([
           return listeningHabitsLoader();
         },
       },
+      {
+        path: "/read-reviews",
+        element: <ReadReviews />,
+      }
     ],
   },
 ]);

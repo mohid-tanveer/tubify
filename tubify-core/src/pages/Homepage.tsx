@@ -141,6 +141,16 @@ export default function Homepage() {
               <p className="mt-1 text-sm text-slate-400">Rate and review songs or albums</p>
             </div>
 
+            {/* Read Reviews Card */}
+            <div 
+              className="flex h-full cursor-pointer flex-col items-center justify-center rounded-lg border border-slate-700 bg-slate-900/50 p-6 text-center transition-colors hover:border-slate-500 hover:bg-slate-900"
+              onClick={() => navigate("/read-reviews")}
+            >
+              
+              <h3 className="text-lg font-medium text-white">Read Reviews</h3>
+              <p className="mt-1 text-sm text-slate-400">See what you and your friends think</p>
+            </div>
+
             {/* spotify connection Card */}
             <div 
               className="flex h-full cursor-pointer flex-col items-center justify-center rounded-lg border border-slate-700 bg-slate-900/50 p-6 text-center transition-colors hover:border-slate-500 hover:bg-slate-900"
