@@ -131,7 +131,7 @@ export default function Homepage() {
               </div>
             )}
 
-            {/* Reviews Card */}
+            {/* reviews card */}
             <div 
               className="flex h-full cursor-pointer flex-col items-center justify-center rounded-lg border border-slate-700 bg-slate-900/50 p-6 text-center transition-colors hover:border-slate-500 hover:bg-slate-900"
               onClick={() => navigate("/enter-review")}
@@ -141,7 +141,7 @@ export default function Homepage() {
               <p className="mt-1 text-sm text-slate-400">Rate and review songs or albums</p>
             </div>
 
-            {/* Read Reviews Card */}
+            {/* read reviews card */}
             <div 
               className="flex h-full cursor-pointer flex-col items-center justify-center rounded-lg border border-slate-700 bg-slate-900/50 p-6 text-center transition-colors hover:border-slate-500 hover:bg-slate-900"
               onClick={() => navigate("/read-reviews")}

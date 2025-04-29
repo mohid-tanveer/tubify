@@ -542,7 +542,7 @@ async def main():
                     sleep_time = args.delay + random.uniform(
                         -1.0, 1.0
                     )  # add some randomness
-                    sleep_time = max(1.0, sleep_time)  # Minimum 1 second
+                    sleep_time = max(1.0, sleep_time)  # minimum 1 second
                     print(
                         f"{Colors.BLUE}Waiting {sleep_time:.1f} seconds before next song...{Colors.END}"
                     )

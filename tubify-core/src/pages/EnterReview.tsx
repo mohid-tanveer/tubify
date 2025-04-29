@@ -1,113 +1,112 @@
-import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { toast } from "sonner";
-import { Search, Music } from "lucide-react"; // Add these imports
-import api from "@/lib/axios";
+import { useState, useEffect } from "react"
+import { useNavigate } from "react-router-dom"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
+import { toast } from "sonner"
+import { Search, Music } from "lucide-react" 
+import api, { AxiosError } from "@/lib/axios"
 
 interface SongResult {
-  id: string;
-  name: string;
-  artist: string;
-  album: string;
-  album_art_url?: string;
+  id: string
+  name: string
+  artist: string
+  album: string
+  album_art_url?: string
 }
 
 export default function EnterReview() {
-  const [type, setType] = useState<"song" | "album">("song");
-  const [id, setId] = useState("");
-  const [rating, setRating] = useState<number | null>(null);
-  const [reviewText, setReviewText] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<SongResult[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
-  const navigate = useNavigate();
+  const [id, setId] = useState("")
+  const [rating, setRating] = useState<number | null>(null)
+  const [reviewText, setReviewText] = useState("")
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [searchQuery, setSearchQuery] = useState("")
+  const [searchResults, setSearchResults] = useState<SongResult[]>([])
+  const [isSearching, setIsSearching] = useState(false)
+  const navigate = useNavigate()
 
   useEffect(() => {
     const searchSongs = async () => {
       if (!searchQuery || searchQuery.length < 2) {
-        setSearchResults([]);
-        return;
+        setSearchResults([])
+        return
       }
 
       try {
-        setIsSearching(true);
-        const response = await api.get(`/api/songs/search?query=${encodeURIComponent(searchQuery)}`);
-        setSearchResults(response.data);
+        setIsSearching(true)
+        const response = await api.get(`/api/songs/search?query=${encodeURIComponent(searchQuery)}`)
+        setSearchResults(response.data)
       } catch (error) {
-        console.error("Failed to search songs:", error);
-        toast.error("Failed to search songs");
+        console.error("Failed to search songs:", error)
+        toast.error("Failed to search songs")
       } finally {
-        setIsSearching(false);
+        setIsSearching(false)
       }
-    };
+    }
 
     const timer = setTimeout(() => {
-      searchSongs();
-    }, 500);
+      searchSongs()
+    }, 500)
 
-    return () => clearTimeout(timer);
-  }, [searchQuery]);
+    return () => clearTimeout(timer)
+  }, [searchQuery])
 
   const handleSelectSong = (song: SongResult) => {
-    setId(song.id);
-    setSearchQuery(song.name);
-    setSearchResults([]);
-  };
+    setId(song.id)
+    setSearchQuery(song.name)
+    setSearchResults([])
+  }
 
   const handleSubmit = async () => {
     if (!id) {
-        toast.error("Please select a song");
-        return;
+        toast.error("Please select a song")
+        return
     }
     if (!rating || rating < 1 || rating > 5) {
-        toast.error("Please enter a valid rating between 1 and 5");
-        return;
+        toast.error("Please enter a valid rating between 1 and 5")
+        return
     }
 
     try {
-        setIsSubmitting(true);
-        //const url = `/api/reviews/songs?song_id=${id}&rating=${rating}`;
+        setIsSubmitting(true)
+        //const url = `/api/reviews/songs?song_id=${id}&rating=${rating}`
         //await api.post(url, {
         //    review_text: reviewText || null
-        //});
-        //toast.success("Review submitted successfully!");
-        //navigate("/profile");
+        //})
+        //toast.success("Review submitted successfully!")
+        //navigate("/profile")
 
-        // 1. Check if the song exists in the database
-        const songExistsResponse = await api.get(`/api/songs/search?query=${encodeURIComponent(searchQuery)}`);
-        const songExists = songExistsResponse.data.some((song: SongResult) => song.id === id);
+        // 1. check if the song exists in the database
+        const songExistsResponse = await api.get(`/api/songs/search?query=${encodeURIComponent(searchQuery)}`)
+        const songExists = songExistsResponse.data.some((song: SongResult) => song.id === id)
 
         if (!songExists) {
-            toast.error("Song not found in the database. Please add the song first.");
-            return;
+            toast.error("Song not found in the database. Please add the song first.")
+            return
         }
 
-        // 2. If the song exists, submit the review
-        console.log("reviewText:", reviewText); // Add this line
-        const url = `/api/reviews/songs?song_id=${id}&rating=${rating}&review_text=${encodeURIComponent(reviewText || '')}`;
+        // 2. if the song exists, submit the review
+        console.log("reviewText:", reviewText)
+        const url = `/api/reviews/songs?song_id=${id}&rating=${rating}&review_text=${encodeURIComponent(reviewText || '')}`
         await api.post(url, {
             review_text: reviewText || null
-        });
+        })
 
-        toast.success("Review submitted successfully!");
-        navigate("/profile");
+        toast.success("Review submitted successfully!")
+        navigate("/profile")
 
     } catch (error) {
-        console.error("Failed to submit review:", error);
-        if (error instanceof Error && (error as any).response && (error as any).response.data) {
-            console.log("Validation Errors:", (error as any).response.data); // <--- ADD THIS LINE
-            toast.error(JSON.stringify((error as any).response.data)); // Show error to user
+        console.error("Failed to submit review:", error)
+        if (error instanceof Error && (error as AxiosError).response?.data) {
+            console.log("Validation Errors:", (error as AxiosError).response?.data)
+            toast.error(JSON.stringify((error as AxiosError).response?.data)) 
         } else {
-            toast.error("Failed to submit review");
+            toast.error("Failed to submit review")
         }
     } finally {
-        setIsSubmitting(false);
+        setIsSubmitting(false)
     }
-};
+}
 
   return (
     <div className="scrollable-page bg-linear-to-b from-slate-900 to-black min-h-screen">
@@ -121,10 +120,10 @@ export default function EnterReview() {
             
           </div>
 
-          {/* Search Input */}
+          {/* search input */}
           <div>
             <label className="block text-sm font-medium text-slate-400 mb-2">
-              {type === "song" ? "Search for a Song" : "Search for an Album"}
+              Search for a Song
             </label>
             <div className="relative">
               {isSearching ? (
@@ -136,14 +135,14 @@ export default function EnterReview() {
               )}
               <Input
                 type="text"
-                placeholder={`Search for a ${type}...`}
+                placeholder={`Search for a song...`}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-10"
               />
             </div>
 
-            {/* Search Results */}
+            {/* search Results */}
             {searchResults.length > 0 && (
               <div className="mt-2 max-h-[300px] overflow-y-auto rounded-lg border border-slate-700 bg-slate-800">
                 {searchResults.map((song) => (
@@ -177,7 +176,7 @@ export default function EnterReview() {
             )}
           </div>
 
-          {/* Rest of your form */}
+          {/* rest of your form */}
           <div>
             <label className="block text-sm font-medium text-slate-400 mb-2">
               Rating
@@ -214,5 +213,5 @@ export default function EnterReview() {
         </div>
       </div>
     </div>
-  );
+  )
 }

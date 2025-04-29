@@ -51,6 +51,7 @@ import {
   recommendationsLoader,
   recommendationAnalysisLoader,
   recommendationYouTubeQueueLoader,
+  reviewsLoader,
 } from "./loaders"
 import "./App.css"
 
@@ -369,7 +370,14 @@ const router = createBrowserRouter([
             <ReadReviews />
           </ProtectedRoute>
         ),
-        loader: fullAuthLoader,
+        loader: async (args) => {
+          // first check auth and spotify status
+          const result = await fullAuthLoader(args)
+          if (result) return result // if it returns a redirect, pass it through
+
+          // load reviews
+          return reviewsLoader()
+        },
       }
     ],
   },
