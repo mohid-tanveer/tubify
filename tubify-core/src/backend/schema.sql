@@ -203,26 +203,28 @@ CREATE TABLE IF NOT EXISTS song_youtube_videos (
     PRIMARY KEY (song_id, youtube_video_id)
 );
 
-CREATE TABLE IF NOT EXISTS song_reviews (
+CREATE TABLE IF NOT EXISTS recommendations (
     id SERIAL PRIMARY KEY,
-    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-    song_id VARCHAR(255) REFERENCES songs(id) ON DELETE CASCADE,
-    rating INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),
-    review_text TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(user_id, song_id)
+    user_id INT NOT NULL REFERENCES users(id),
+    song_id VARCHAR NOT NULL REFERENCES songs(id),
+    source TEXT,
+    recommended_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
-CREATE TABLE IF NOT EXISTS album_reviews (
+CREATE TABLE IF NOT EXISTS recommendation_feedback (
     id SERIAL PRIMARY KEY,
-    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-    album_id VARCHAR(255) REFERENCES albums(id) ON DELETE CASCADE,
-    rating INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),
-    review_text TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(user_id, album_id) 
+    song_id VARCHAR NOT NULL REFERENCES songs(id) ON DELETE CASCADE,
+    user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    liked BOOLEAN NOT NULL,
+    source VARCHAR(50),
+    feedback_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(song_id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS user_cluster_cache (
+    user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    cluster_data JSONB NOT NULL,
+    timestamp INTEGER NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
@@ -271,3 +273,14 @@ CREATE INDEX IF NOT EXISTS idx_genres_id_to_name ON genres(id);
 CREATE INDEX IF NOT EXISTS idx_song_youtube_videos_video_type ON song_youtube_videos(video_type);
 CREATE INDEX IF NOT EXISTS idx_song_audio_features_song_id ON song_audio_features(song_id);
 CREATE INDEX IF NOT EXISTS idx_song_lyrics_song_id ON song_lyrics(song_id);
+CREATE INDEX IF NOT EXISTS idx_recommendations_user_id ON recommendations(user_id);
+CREATE INDEX IF NOT EXISTS idx_recommendations_song_id ON recommendations(song_id);
+CREATE INDEX IF NOT EXISTS idx_recommendations_user_song ON recommendations(user_id, song_id);
+CREATE INDEX IF NOT EXISTS idx_recommendations_user_time ON recommendations(user_id, recommended_at DESC);
+CREATE INDEX IF NOT EXISTS idx_recommendation_feedback_song_id ON recommendation_feedback(song_id);
+CREATE INDEX IF NOT EXISTS idx_recommendation_feedback_user_id ON recommendation_feedback(user_id);
+CREATE INDEX IF NOT EXISTS idx_recommendation_feedback_user_time ON recommendation_feedback(user_id, feedback_at DESC);
+CREATE INDEX IF NOT EXISTS idx_recommendation_feedback_compound ON recommendation_feedback(song_id, user_id);
+CREATE INDEX IF NOT EXISTS idx_recommendation_feedback_liked ON recommendation_feedback(liked);
+CREATE INDEX IF NOT EXISTS idx_recommendation_feedback_song_user_liked ON recommendation_feedback(song_id, user_id, liked);
+CREATE INDEX IF NOT EXISTS idx_recommendation_feedback_user_liked_time ON recommendation_feedback(user_id, liked, feedback_at DESC);
