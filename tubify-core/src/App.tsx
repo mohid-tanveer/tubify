@@ -30,6 +30,8 @@ import {
   ListeningHabits,
   RecommendationAnalysis,
   RecommendationYouTubeView,
+  EnterReview,
+  ReadReviews
 } from "./pages"
 import { Spinner } from "./components/ui/spinner"
 import { AuthContext } from "./contexts/auth"
@@ -143,6 +145,15 @@ const router = createBrowserRouter([
           </ProtectedRoute>
         ),
         loader: profileLoader,
+      },
+      {
+        path: "/enter-review",
+        element: (
+          <ProtectedRoute>
+            <EnterReview />
+          </ProtectedRoute>
+        ),
+        loader: fullAuthLoader,
       },
       {
         path: "/users/:username",
@@ -351,6 +362,15 @@ const router = createBrowserRouter([
           return listeningHabitsLoader()
         },
       },
+      {
+        path: "/read-reviews",
+        element: (
+          <ProtectedRoute>
+            <ReadReviews />
+          </ProtectedRoute>
+        ),
+        loader: fullAuthLoader,
+      }
     ],
   },
 ])
