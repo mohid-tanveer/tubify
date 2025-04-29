@@ -8,9 +8,15 @@ import httpx
 from urllib.parse import quote_plus
 import asyncio
 import html
+import random
+from youtube_web_search import search_youtube_without_api, get_video_details
 
 # create router
 router = APIRouter(prefix="/api/youtube", tags=["youtube"])
+
+# Rate limiting constants
+MIN_DELAY = 1.0  # Minimum delay between requests in seconds
+MAX_DELAY = 2.0  # Maximum delay between requests in seconds
 
 
 # helper function to decode html entities in video titles
@@ -133,7 +139,18 @@ async def search_videos(
     user: User = Depends(get_current_user),
 ):
     """search for youtube videos"""
+    # try api search first
     videos = await search_youtube_videos(query, max_results)
+
+    # if api search fails or returns empty results due to quota, try web search
+    if not videos:
+        print(
+            f"YouTube API search failed or quota exceeded, falling back to web search for: {query}"
+        )
+        # Add small delay to avoid rate limiting
+        await asyncio.sleep(random.uniform(MIN_DELAY, MAX_DELAY))
+        videos = await search_youtube_without_api(query, max_results)
+
     return videos
 
 
@@ -206,74 +223,38 @@ async def get_song_videos(
     if not videos:
         # build search query
         artist_str = " ".join(artist_names[:2])  # use first two artists
-        search_query = f"{artist_str} {song['name']} official music video"
 
-        # search for official music video
-        official_videos = await search_youtube_videos(search_query, 1)
+        # Try to find videos using the hybrid approach that reduces API usage
+        videos_found = await find_and_add_youtube_videos(
+            song_id, song["name"], artist_str
+        )
 
-        if official_videos:
-            official_video = official_videos[0]
-
-            # add to database
-            await database.execute(
+        if videos_found:
+            # Get the newly added videos from the database
+            new_videos = await database.fetch_all(
                 """
-                INSERT INTO song_youtube_videos (
-                    song_id, youtube_video_id, video_type, title, position
-                )
-                VALUES (
-                    :song_id, :youtube_video_id, :video_type, :title, :position
-                )
-                ON CONFLICT (song_id, youtube_video_id) DO NOTHING
+                SELECT youtube_video_id, video_type, title, position
+                FROM song_youtube_videos
+                WHERE song_id = :song_id
+                ORDER BY 
+                    CASE WHEN video_type = 'official_video' THEN 0 ELSE 1 END,
+                    position
                 """,
-                values={
-                    "song_id": song_id,
-                    "youtube_video_id": official_video["id"],
-                    "video_type": "official_video",
-                    "title": official_video["title"],
-                    "position": 0,
-                },
+                values={"song_id": song_id},
             )
 
-            # add to response
-            result.official_video = YouTubeVideo(
-                id=official_video["id"],
-                title=official_video["title"],
-                position=0,
-            )
-
-        # search for live performances
-        search_query = f"{artist_str} {song['name']} live performance"
-        live_videos = await search_youtube_videos(search_query, 3)
-
-        # add live performances to database
-        for idx, video in enumerate(live_videos):
-            await database.execute(
-                """
-                INSERT INTO song_youtube_videos (
-                    song_id, youtube_video_id, video_type, title, position
-                )
-                VALUES (
-                    :song_id, :youtube_video_id, :video_type, :title, :position
-                )
-                ON CONFLICT (song_id, youtube_video_id) DO NOTHING
-                """,
-                values={
-                    "song_id": song_id,
-                    "youtube_video_id": video["id"],
-                    "video_type": "live_performance",
-                    "title": video["title"],
-                    "position": idx,
-                },
-            )
-
-            # add to response
-            result.live_performances.append(
-                YouTubeVideo(
-                    id=video["id"],
+            # Update the response with the newly found videos
+            for video in new_videos:
+                video_data = YouTubeVideo(
+                    id=video["youtube_video_id"],
                     title=video["title"],
-                    position=idx,
+                    position=video["position"],
                 )
-            )
+
+                if video["video_type"] == "official_video":
+                    result.official_video = video_data
+                else:
+                    result.live_performances.append(video_data)
 
     return result
 
@@ -514,8 +495,6 @@ async def get_playlist_queue(
 
     # shuffle if requested
     if queue_type == "shuffle":
-        import random
-
         random.shuffle(queue_items)
 
     return PlaybackQueue(
@@ -816,14 +795,18 @@ async def find_and_add_youtube_videos(song_id: str, song_name: str, artist_str: 
             song_name.replace("(feat.", "").replace("feat.", "").split("(")[0].strip()
         )
 
-        # first search for official music video
+        # first search for official music video using web search (no API quota used)
         official_query = f"{artist_str} {song_name_clean} official video"
-        official_videos = await search_youtube_videos(official_query, 3)
+        # Add delay to avoid rate limiting
+        await asyncio.sleep(random.uniform(MIN_DELAY, MAX_DELAY))
+        official_videos = await search_youtube_without_api(official_query, 3)
 
         if not official_videos:
             # try a simpler search query if the first one fails
             official_query = f"{artist_str} {song_name_clean}"
-            official_videos = await search_youtube_videos(official_query, 3)
+            # Add delay to avoid rate limiting
+            await asyncio.sleep(random.uniform(MIN_DELAY, MAX_DELAY))
+            official_videos = await search_youtube_without_api(official_query, 3)
 
         # apply lighter filtering
         filtered_official = []
@@ -856,14 +839,18 @@ async def find_and_add_youtube_videos(song_id: str, song_name: str, artist_str: 
         # select the best match from filtered official videos
         official_video = filtered_official[0] if filtered_official else None
 
-        # try to find live performances
+        # try to find live performances using web search (no API quota used)
         live_query = f"{artist_str} {song_name_clean} live"
-        live_videos = await search_youtube_videos(live_query, 5)
+        # Add delay to avoid rate limiting
+        await asyncio.sleep(random.uniform(MIN_DELAY, MAX_DELAY))
+        live_videos = await search_youtube_without_api(live_query, 5)
 
         if not live_videos:
             # if no live performances found, try "live performance"
             live_query = f"{artist_str} {song_name_clean} live performance"
-            live_videos = await search_youtube_videos(live_query, 5)
+            # Add delay to avoid rate limiting
+            await asyncio.sleep(random.uniform(MIN_DELAY, MAX_DELAY))
+            live_videos = await search_youtube_without_api(live_query, 5)
 
         # apply lighter filtering for live videos
         filtered_live = []
