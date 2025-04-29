@@ -21,6 +21,7 @@ from scipy.spatial.distance import cosine
 from datetime import datetime, date
 import traceback
 import pandas as pd
+from auth import get_current_user, get_db
 
 # set up logging
 logging.basicConfig(
@@ -1093,16 +1094,11 @@ async def get_api_recommendation_response(
             logger.error(f"Error adding feedback to lyrical recommendations: {e}")
 
         # insert all recommendations into the database to get recommendation_ids
-        # first delete old recommendation records that don't have feedback
+        # first delete old recommendation records
         await database.execute(
             """
             DELETE FROM recommendations
             WHERE user_id = :user_id
-            AND id NOT IN (
-                SELECT recommendation_id 
-                FROM recommendation_feedback 
-                WHERE recommendation_feedback.recommendation_id = recommendations.id
-            )
             """,
             {"user_id": user_id},
         )
@@ -1227,8 +1223,6 @@ router = APIRouter(prefix="/api/recommendations", tags=["recommendations"])
 
 # user dependency
 async def get_current_user_id(request: Request):
-    from auth import get_current_user, get_db
-
     database = get_db()
 
     token = request.cookies.get("access_token")
@@ -1246,47 +1240,29 @@ class FeedbackModel(BaseModel):
     song_id: str
     liked: bool
     recommendation_id: Optional[int] = None
+    tab: Optional[str] = None
 
 
 @router.post("/feedback")
 async def post_feedback(
     feedback: FeedbackModel, user_id: int = Depends(get_current_user_id)
 ):
-    """Record a user's like/dislike for a previously generated recommendation"""
+    """record a user's like/dislike for a song recommendation"""
     try:
-        # find the latest recommendation entry if recommendation_id is not provided
-        rec_id = feedback.recommendation_id
-        if not rec_id:
-            logger.info(
-                f"No recommendation_id provided, looking for existing recommendation"
-            )
+        # try to get the source of the recommendation if it exists
+        source = None
+        if feedback.recommendation_id:
             rec_row = await database.fetch_one(
-                "SELECT id FROM recommendations WHERE user_id = :user_id AND song_id = :song_id ORDER BY recommended_at DESC LIMIT 1",
-                {"user_id": user_id, "song_id": feedback.song_id},
+                "SELECT source FROM recommendations WHERE id = :rec_id",
+                {"rec_id": feedback.recommendation_id},
             )
+            if rec_row:
+                source = rec_row["source"]
 
-            if not rec_row:
-                logger.info(
-                    f"No existing recommendation found for song {feedback.song_id}, creating one"
-                )
-                # create a record if it doesn't exist
-                rec_id = await database.execute(
-                    """
-                    INSERT INTO recommendations (user_id, song_id, source)
-                    VALUES (:user_id, :song_id, 'manual_feedback')
-                    RETURNING id
-                    """,
-                    {"user_id": user_id, "song_id": feedback.song_id},
-                )
-                logger.info(f"Created new recommendation record with id {rec_id}")
-            else:
-                rec_id = rec_row["id"]
-                logger.info(f"Found existing recommendation with id {rec_id}")
-
-        # check if feedback already exists
+        # check if feedback already exists for this song
         existing = await database.fetch_one(
-            "SELECT id FROM recommendation_feedback WHERE recommendation_id = :rec_id AND user_id = :user_id",
-            {"rec_id": rec_id, "user_id": user_id},
+            "SELECT id FROM recommendation_feedback WHERE song_id = :song_id AND user_id = :user_id",
+            {"song_id": feedback.song_id, "user_id": user_id},
         )
 
         if existing:
@@ -1294,38 +1270,35 @@ async def post_feedback(
             await database.execute(
                 """
                 UPDATE recommendation_feedback 
-                SET liked = :liked, feedback_at = CURRENT_TIMESTAMP
+                SET liked = :liked, feedback_at = CURRENT_TIMESTAMP,
+                    source = COALESCE(:source, source)
                 WHERE id = :id
                 """,
-                {"id": existing["id"], "liked": feedback.liked},
+                {"id": existing["id"], "liked": feedback.liked, "source": source},
             )
+            logger.info(f"updated existing feedback for song {feedback.song_id}")
         else:
             # insert new feedback
             try:
                 feedback_id = await database.execute(
                     """
-                    INSERT INTO recommendation_feedback (recommendation_id, user_id, liked)
-                    VALUES (:rec_id, :user_id, :liked)
+                    INSERT INTO recommendation_feedback (song_id, user_id, liked, source)
+                    VALUES (:song_id, :user_id, :liked, :source)
                     RETURNING id
                     """,
-                    {"rec_id": rec_id, "user_id": user_id, "liked": feedback.liked},
+                    {
+                        "song_id": feedback.song_id,
+                        "user_id": user_id,
+                        "liked": feedback.liked,
+                        "source": source,
+                    },
                 )
+                logger.info(f"inserted new feedback for song {feedback.song_id}")
             except Exception as insert_error:
-                logger.error(f"Failed to insert feedback: {insert_error}")
-                # attempt to get more detailed error information
-                try:
-                    logger.error(
-                        f"recommendation_id: {rec_id}, user_id: {user_id}, liked: {feedback.liked}"
-                    )
-                    rec_exists = await database.fetch_one(
-                        "SELECT 1 FROM recommendations WHERE id = :id", {"id": rec_id}
-                    )
-                    logger.error(f"Recommendation exists: {rec_exists is not None}")
-                except Exception as e:
-                    logger.error(f"Error checking recommendation existence: {e}")
+                logger.error(f"failed to insert feedback: {insert_error}")
                 raise insert_error
 
-        # for analytics and monitoring, let's also track this in user liked songs if it was liked
+        # for analytics and monitoring, also track this in user liked songs if it was liked
         if feedback.liked:
             try:
                 # check if song is already in user liked songs
@@ -1343,17 +1316,18 @@ async def post_feedback(
                         """,
                         {"user_id": user_id, "song_id": feedback.song_id},
                     )
+                    logger.info(f"added song {feedback.song_id} to user_liked_songs")
             except Exception as like_error:
                 # don't fail the whole feedback process if this part fails
                 logger.warning(f"could not add to user_liked_songs: {like_error}")
 
-        return {"success": True, "message": "Feedback recorded successfully"}
+        return {"success": True, "message": "feedback recorded successfully"}
     except Exception as e:
         logger.error(f"error recording feedback: {e}")
         import traceback
 
         logger.error(traceback.format_exc())
-        raise HTTPException(status_code=500, detail="Failed to record feedback")
+        raise HTTPException(status_code=500, detail="failed to record feedback")
 
 
 @router.get("/")
@@ -1362,16 +1336,11 @@ async def get_recommendations(
 ):
     """get personalized recommendations and log them"""
     try:
-        # first, delete previous recommendations except those that have feedback
+        # delete all previous recommendations for this user
         await database.execute(
             """
             DELETE FROM recommendations
             WHERE user_id = :user_id
-            AND id NOT IN (
-                SELECT recommendation_id 
-                FROM recommendation_feedback 
-                WHERE recommendation_feedback.recommendation_id = recommendations.id
-            )
             """,
             {"user_id": user_id},
         )
@@ -1408,12 +1377,12 @@ async def get_recommendations(
 
         return {"recommendations": recs}
     except Exception as e:
-        logger.error(f"Error generating recommendations: {e}")
+        logger.error(f"error generating recommendations: {e}")
         import traceback
 
         logger.error(traceback.format_exc())
         raise HTTPException(
-            status_code=500, detail="Failed to generate recommendations"
+            status_code=500, detail="failed to generate recommendations"
         )
 
 
@@ -1447,7 +1416,7 @@ async def get_user_recommendation_feedback(user_id: int = Depends(get_current_us
     try:
         query = """
             SELECT 
-                r.song_id,
+                rf.song_id,
                 rf.liked,
                 rf.feedback_at,
                 s.name as song_name,
@@ -1456,13 +1425,12 @@ async def get_user_recommendation_feedback(user_id: int = Depends(get_current_us
                 a.image_url as album_image_url,
                 string_agg(ar.name, ', ') as artist_names
             FROM recommendation_feedback rf
-            JOIN recommendations r ON rf.recommendation_id = r.id
-            JOIN songs s ON r.song_id = s.id
+            JOIN songs s ON rf.song_id = s.id
             JOIN albums a ON s.album_id = a.id
             JOIN song_artists sa ON s.id = sa.song_id
             JOIN artists ar ON sa.artist_id = ar.id
             WHERE rf.user_id = :user_id
-            GROUP BY r.song_id, rf.liked, rf.feedback_at, s.name, 
+            GROUP BY rf.song_id, rf.liked, rf.feedback_at, s.name, 
                      s.spotify_uri, a.name, a.image_url
             ORDER BY rf.feedback_at DESC
         """
@@ -1474,7 +1442,7 @@ async def get_user_recommendation_feedback(user_id: int = Depends(get_current_us
     except Exception as e:
         logger.error(f"error retrieving user feedback: {e}")
         raise HTTPException(
-            status_code=500, detail="Failed to retrieve feedback history"
+            status_code=500, detail="failed to retrieve feedback history"
         )
 
 
@@ -1625,11 +1593,10 @@ async def get_user_feedback(user_id: int) -> Dict[str, bool]:
     """get user feedback for songs"""
     try:
         query = """
-            SELECT r.song_id, rf.liked 
-            FROM recommendation_feedback rf
-            JOIN recommendations r ON rf.recommendation_id = r.id
-            WHERE rf.user_id = :user_id
-            ORDER BY rf.feedback_at DESC
+            SELECT song_id, liked 
+            FROM recommendation_feedback
+            WHERE user_id = :user_id
+            ORDER BY feedback_at DESC
         """
         rows = await database.fetch_all(query, {"user_id": user_id})
 

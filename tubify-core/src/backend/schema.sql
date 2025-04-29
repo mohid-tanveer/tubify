@@ -206,17 +206,19 @@ CREATE TABLE IF NOT EXISTS song_youtube_videos (
 CREATE TABLE IF NOT EXISTS recommendations (
     id SERIAL PRIMARY KEY,
     user_id INT NOT NULL REFERENCES users(id),
-    song_id VARCHAR NOT NULL,
+    song_id VARCHAR NOT NULL REFERENCES songs(id),
     source TEXT,
     recommended_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS recommendation_feedback (
     id SERIAL PRIMARY KEY,
-    recommendation_id INT NOT NULL REFERENCES recommendations(id) ON DELETE CASCADE,
-    user_id INT NOT NULL REFERENCES users(id),
+    song_id VARCHAR NOT NULL REFERENCES songs(id) ON DELETE CASCADE,
+    user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     liked BOOLEAN NOT NULL,
-    feedback_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    source VARCHAR(50),
+    feedback_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(song_id, user_id)
 );
 
 CREATE TABLE IF NOT EXISTS user_cluster_cache (
@@ -275,7 +277,10 @@ CREATE INDEX IF NOT EXISTS idx_recommendations_user_id ON recommendations(user_i
 CREATE INDEX IF NOT EXISTS idx_recommendations_song_id ON recommendations(song_id);
 CREATE INDEX IF NOT EXISTS idx_recommendations_user_song ON recommendations(user_id, song_id);
 CREATE INDEX IF NOT EXISTS idx_recommendations_user_time ON recommendations(user_id, recommended_at DESC);
-CREATE INDEX IF NOT EXISTS idx_recommendation_feedback_recommendation_id ON recommendation_feedback(recommendation_id);
+CREATE INDEX IF NOT EXISTS idx_recommendation_feedback_song_id ON recommendation_feedback(song_id);
 CREATE INDEX IF NOT EXISTS idx_recommendation_feedback_user_id ON recommendation_feedback(user_id);
 CREATE INDEX IF NOT EXISTS idx_recommendation_feedback_user_time ON recommendation_feedback(user_id, feedback_at DESC);
-CREATE INDEX IF NOT EXISTS idx_recommendation_feedback_compound ON recommendation_feedback(recommendation_id, user_id);
+CREATE INDEX IF NOT EXISTS idx_recommendation_feedback_compound ON recommendation_feedback(song_id, user_id);
+CREATE INDEX IF NOT EXISTS idx_recommendation_feedback_liked ON recommendation_feedback(liked);
+CREATE INDEX IF NOT EXISTS idx_recommendation_feedback_song_user_liked ON recommendation_feedback(song_id, user_id, liked);
+CREATE INDEX IF NOT EXISTS idx_recommendation_feedback_user_liked_time ON recommendation_feedback(user_id, liked, feedback_at DESC);

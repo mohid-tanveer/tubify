@@ -3,7 +3,7 @@ import { Button } from "./button"
 import { ThumbsUp, ThumbsDown } from "lucide-react"
 import api from "@/lib/axios"
 import { toast } from "sonner"
-import { clearRecommendationsCache } from "@/loaders/playlist-loaders"
+import { clearRecommendationsCache } from "@/loaders/recommendation-loaders"
 
 interface RecommendationFeedbackProps {
   songId: string

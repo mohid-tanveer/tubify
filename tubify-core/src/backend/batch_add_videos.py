@@ -19,9 +19,9 @@ YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY")
 # database connection string - use the same as in your main application
 DATABASE_URL = os.getenv("DATABASE_URL")
 
-# Rate limiting constants
-MIN_DELAY = 1.0  # Minimum delay between requests in seconds
-MAX_DELAY = 3.0  # Maximum delay between requests in seconds
+# rate limiting constants
+MIN_DELAY = 1.0  # minimum delay between requests in seconds
+MAX_DELAY = 3.0  # maximum delay between requests in seconds
 
 
 # console colors for better readability
@@ -49,7 +49,7 @@ async def get_songs_without_videos(
     conn: asyncpg.Connection, limit: int = 10
 ) -> List[Dict[str, Any]]:
     """get songs that don't have youtube videos in the database"""
-    # First, get songs without YouTube videos
+    # first, get songs without YouTube videos
     query = """
     WITH songs_without_videos AS (
         SELECT s.id as song_id, s.name as song_name
@@ -92,22 +92,22 @@ async def search_with_retry(
     retries = 0
     while retries <= max_retries:
         try:
-            # Apply rate limiting
+            # apply rate limiting
             await asyncio.sleep(random.uniform(MIN_DELAY, MAX_DELAY))
 
             videos = await search_youtube_without_api(query, max_results)
             if videos:
                 return videos
 
-            # If no videos found and not last retry
+            # if no videos found and not last retry
             if retries < max_retries:
                 print(
                     f"{Colors.YELLOW}No videos found, retrying with modified query...{Colors.END}"
                 )
-                # Simplify query by removing some terms
+                # simplify query by removing some terms
                 words = query.split()
                 if len(words) > 2 and retries == 0:
-                    # First retry: remove "official video" or "live" terms
+                    # first retry: remove "official video" or "live" terms
                     simplified_query = " ".join(
                         [
                             w
@@ -118,7 +118,7 @@ async def search_with_retry(
                     )
                     query = simplified_query
                 elif len(words) > 2:
-                    # Second retry: just artist and song name
+                    # second retry: just artist and song name
                     query = " ".join(words[:2])
 
             retries += 1
@@ -131,9 +131,9 @@ async def search_with_retry(
             retries += 1
             if retries <= max_retries:
                 print(f"{Colors.YELLOW}Retry {retries}/{max_retries}...{Colors.END}")
-            await asyncio.sleep(2)  # Wait longer before retrying after an error
+            await asyncio.sleep(2)  # wait longer before retrying after an error
 
-    # Return empty list if all retries failed
+    # return empty list if all retries failed
     return []
 
 
@@ -257,7 +257,7 @@ async def find_and_add_youtube_videos(
         video_data = []
 
         if official_video:
-            # Get video details if API key is available
+            # get video details if API key is available
             if YOUTUBE_API_KEY:
                 try:
                     await asyncio.sleep(random.uniform(MIN_DELAY, MAX_DELAY))
@@ -298,7 +298,7 @@ async def find_and_add_youtube_videos(
                         }
                     )
             else:
-                # If no API key, use basic info
+                # if no API key, use basic info
                 video_data.append(
                     {
                         "song_id": song_id,
@@ -315,7 +315,7 @@ async def find_and_add_youtube_videos(
             if official_video and video["id"] == official_video["id"]:
                 continue
 
-            # Get video details if API key is available
+            # get video details if API key is available
             if YOUTUBE_API_KEY:
                 try:
                     await asyncio.sleep(random.uniform(MIN_DELAY, MAX_DELAY))
@@ -356,7 +356,7 @@ async def find_and_add_youtube_videos(
                         }
                     )
             else:
-                # If no API key, use basic info
+                # if no API key, use basic info
                 video_data.append(
                     {
                         "song_id": song_id,
@@ -369,7 +369,7 @@ async def find_and_add_youtube_videos(
 
         # if we have video data, insert it
         if video_data:
-            # Insert videos into database
+            # insert videos into database
             await conn.executemany(
                 """
                 INSERT INTO song_youtube_videos (
@@ -409,7 +409,7 @@ async def find_and_add_videos_unsupervised(
     all_artists = song["all_artists"]
     primary_artist = song["primary_artist"]
 
-    # Check if the song already has videos (double check)
+    # check if the song already has videos (double check)
     existing_videos = await conn.fetchval(
         "SELECT COUNT(*) FROM song_youtube_videos WHERE song_id = $1", song_id
     )
@@ -420,7 +420,7 @@ async def find_and_add_videos_unsupervised(
         )
         return False
 
-    # If primary artist is None, fall back to all artists
+    # if primary artist is None, fall back to all artists
     search_artist = primary_artist if primary_artist else all_artists
 
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -431,7 +431,7 @@ async def find_and_add_videos_unsupervised(
         f"{Colors.BLUE}Using primary artist for search: {Colors.BOLD}{search_artist}{Colors.END}"
     )
 
-    # Use the same find_and_add_youtube_videos function as in youtube.py but with our database connection
+    # use the same find_and_add_youtube_videos function as in youtube.py but with our database connection
     success, videos = await find_and_add_youtube_videos(
         song_id, song_name, search_artist, conn
     )
@@ -498,7 +498,7 @@ async def main():
             f"{Colors.GREEN}Found {len(songs)} songs without YouTube videos. Processing in unsupervised mode...{Colors.END}"
         )
 
-        # Create a log file to track progress
+        # create a log file to track progress
         log_file = f"video_import_log_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
         with open(log_file, "w") as f:
             f.write(
@@ -506,7 +506,7 @@ async def main():
             )
             f.write(f"Found {len(songs)} songs without YouTube videos\n\n")
 
-        # Process songs one by one
+        # process songs one by one
         processed_count = 0
         success_count = 0
         api_failures = 0
@@ -518,14 +518,14 @@ async def main():
                 if success:
                     success_count += 1
 
-                # Save progress to log file
+                # save progress to log file
                 with open(log_file, "a") as f:
                     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     f.write(
                         f"[{timestamp}] Processed song {i+1}/{len(songs)}: {song['song_name']} by {song['all_artists']} - {'Success' if success else 'Failed'}\n"
                     )
 
-                # Check if we've had too many API failures
+                # check if we've had too many API failures
                 if api_failures > 3:
                     print(
                         f"{Colors.RED}Too many YouTube API failures. Stopping script.{Colors.END}"
@@ -535,11 +535,11 @@ async def main():
                     )
                     break
 
-                # Add delay between songs for rate limiting
+                # add delay between songs for rate limiting
                 if i < len(songs) - 1:
                     sleep_time = args.delay + random.uniform(
                         -1.0, 1.0
-                    )  # Add some randomness
+                    )  # add some randomness
                     sleep_time = max(1.0, sleep_time)  # Minimum 1 second
                     print(
                         f"{Colors.BLUE}Waiting {sleep_time:.1f} seconds before next song...{Colors.END}"
@@ -548,7 +548,7 @@ async def main():
 
             except Exception as e:
                 print(f"{Colors.RED}Error processing song: {str(e)}{Colors.END}")
-                # Save error to log file
+                # save error to log file
                 with open(log_file, "a") as f:
                     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     f.write(

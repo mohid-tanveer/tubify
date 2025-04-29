@@ -14,9 +14,9 @@ from youtube_web_search import search_youtube_without_api, get_video_details
 # create router
 router = APIRouter(prefix="/api/youtube", tags=["youtube"])
 
-# Rate limiting constants
-MIN_DELAY = 1.0  # Minimum delay between requests in seconds
-MAX_DELAY = 2.0  # Maximum delay between requests in seconds
+# rate limiting constants
+MIN_DELAY = 1.0  # minimum delay between requests in seconds
+MAX_DELAY = 2.0  # maximum delay between requests in seconds
 
 
 # helper function to decode html entities in video titles
@@ -147,7 +147,7 @@ async def search_videos(
         print(
             f"YouTube API search failed or quota exceeded, falling back to web search for: {query}"
         )
-        # Add small delay to avoid rate limiting
+        # add small delay to avoid rate limiting
         await asyncio.sleep(random.uniform(MIN_DELAY, MAX_DELAY))
         videos = await search_youtube_without_api(query, max_results)
 
@@ -224,13 +224,13 @@ async def get_song_videos(
         # build search query
         artist_str = " ".join(artist_names[:2])  # use first two artists
 
-        # Try to find videos using the hybrid approach that reduces API usage
+        # try to find videos using the hybrid approach that reduces API usage
         videos_found = await find_and_add_youtube_videos(
             song_id, song["name"], artist_str
         )
 
         if videos_found:
-            # Get the newly added videos from the database
+            # get the newly added videos from the database
             new_videos = await database.fetch_all(
                 """
                 SELECT youtube_video_id, video_type, title, position
@@ -243,7 +243,7 @@ async def get_song_videos(
                 values={"song_id": song_id},
             )
 
-            # Update the response with the newly found videos
+            # update the response with the newly found videos
             for video in new_videos:
                 video_data = YouTubeVideo(
                     id=video["youtube_video_id"],
@@ -797,14 +797,14 @@ async def find_and_add_youtube_videos(song_id: str, song_name: str, artist_str: 
 
         # first search for official music video using web search (no API quota used)
         official_query = f"{artist_str} {song_name_clean} official video"
-        # Add delay to avoid rate limiting
+        # add delay to avoid rate limiting
         await asyncio.sleep(random.uniform(MIN_DELAY, MAX_DELAY))
         official_videos = await search_youtube_without_api(official_query, 3)
 
         if not official_videos:
             # try a simpler search query if the first one fails
             official_query = f"{artist_str} {song_name_clean}"
-            # Add delay to avoid rate limiting
+            # add delay to avoid rate limiting
             await asyncio.sleep(random.uniform(MIN_DELAY, MAX_DELAY))
             official_videos = await search_youtube_without_api(official_query, 3)
 
@@ -841,14 +841,14 @@ async def find_and_add_youtube_videos(song_id: str, song_name: str, artist_str: 
 
         # try to find live performances using web search (no API quota used)
         live_query = f"{artist_str} {song_name_clean} live"
-        # Add delay to avoid rate limiting
+        # add delay to avoid rate limiting
         await asyncio.sleep(random.uniform(MIN_DELAY, MAX_DELAY))
         live_videos = await search_youtube_without_api(live_query, 5)
 
         if not live_videos:
             # if no live performances found, try "live performance"
             live_query = f"{artist_str} {song_name_clean} live performance"
-            # Add delay to avoid rate limiting
+            # add delay to avoid rate limiting
             await asyncio.sleep(random.uniform(MIN_DELAY, MAX_DELAY))
             live_videos = await search_youtube_without_api(live_query, 5)
 
@@ -928,3 +928,184 @@ async def find_and_add_youtube_videos(song_id: str, song_name: str, artist_str: 
     except Exception as e:
         print(f"Error finding videos for {song_name} by {artist_str}: {e}")
         return False
+
+
+@router.get("/recommendations/check")
+async def check_recommendations_videos(
+    tab: str = Query(None, regex="^(for-you|hybrid|friends|similar|lyrical)$"),
+    user: User = Depends(get_current_user),
+):
+    """check if any youtube videos are available for the user's recommendations"""
+    try:
+        # get all recommendations regardless of source
+        recommendations = await database.fetch_all(
+            """
+            SELECT r.song_id
+            FROM recommendations r
+            WHERE r.user_id = :user_id
+            LIMIT 100
+            """,
+            values={"user_id": user.id},
+        )
+
+        if not recommendations:
+            return {"has_videos": False}
+
+        # get all song ids
+        song_ids = [rec["song_id"] for rec in recommendations]
+
+        # check if any of these songs have youtube videos
+        video_data = await database.fetch_all(
+            """
+            SELECT syv.song_id 
+            FROM song_youtube_videos syv
+            WHERE syv.song_id = ANY(:song_ids)
+            """,
+            values={"song_ids": song_ids},
+        )
+
+        # create a set of song_ids that have videos
+        songs_with_videos = {video["song_id"] for video in video_data}
+
+        # check if there are any videos available
+        has_videos = len(songs_with_videos) > 0
+
+        return {"has_videos": has_videos}
+
+    except Exception as e:
+        print(f"error checking recommendation videos: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"error checking videos: {str(e)}",
+        )
+
+
+@router.get("/recommendations/all")
+async def get_all_recommendation_queue(
+    user: User = Depends(get_current_user),
+):
+    """get youtube videos for all recommendations combined"""
+    try:
+        # get all recommendations from all sources
+        recommendations = await database.fetch_all(
+            """
+            SELECT r.song_id, r.source
+            FROM recommendations r
+            WHERE r.user_id = :user_id
+            """,
+            values={"user_id": user.id},
+        )
+
+        return await build_recommendation_queue(user.id, recommendations)
+
+    except Exception as e:
+        print(f"error getting all recommendation videos: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"error getting videos: {str(e)}",
+        )
+
+
+async def build_recommendation_queue(user_id: int, recommendations):
+    """helper function to build a queue from recommendation song_ids"""
+    if not recommendations:
+        return {"queue_items": []}
+
+    # get song ids
+    song_ids = [rec["song_id"] for rec in recommendations]
+
+    # get songs with youtube videos
+    songs = await database.fetch_all(
+        """
+        SELECT 
+            s.id AS song_id, s.name, s.spotify_uri, s.duration_ms,
+            a.name AS album_name, a.image_url AS album_art_url
+        FROM songs s
+        JOIN albums a ON s.album_id = a.id
+        JOIN song_youtube_videos syv ON s.id = syv.song_id
+        WHERE s.id = ANY(:song_ids)
+        GROUP BY s.id, s.name, s.spotify_uri, s.duration_ms, a.name, a.image_url
+        """,
+        values={"song_ids": song_ids},
+    )
+
+    if not songs:
+        return {"queue_items": []}
+
+    # get all song ids with videos
+    song_ids_with_videos = [song["song_id"] for song in songs]
+
+    # get artist names for each song
+    song_artists = {}
+    artists_data = await database.fetch_all(
+        """
+        SELECT sa.song_id, a.name
+        FROM song_artists sa
+        JOIN artists a ON sa.artist_id = a.id
+        WHERE sa.song_id = ANY(:song_ids)
+        ORDER BY sa.song_id, sa.list_position
+        """,
+        values={"song_ids": song_ids_with_videos},
+    )
+
+    for artist in artists_data:
+        song_id = artist["song_id"]
+        if song_id not in song_artists:
+            song_artists[song_id] = []
+        song_artists[song_id].append(artist["name"])
+
+    # get youtube videos for each song
+    song_videos = {}
+    videos_data = await database.fetch_all(
+        """
+        SELECT song_id, youtube_video_id, video_type, title, position
+        FROM song_youtube_videos
+        WHERE song_id = ANY(:song_ids)
+        ORDER BY song_id, 
+                CASE WHEN video_type = 'official_video' THEN 0 ELSE 1 END,
+                position
+        """,
+        values={"song_ids": song_ids_with_videos},
+    )
+
+    for video in videos_data:
+        song_id = video["song_id"]
+
+        if song_id not in song_videos:
+            song_videos[song_id] = {"official_video": None, "live_performances": []}
+
+        video_data = YouTubeVideo(
+            id=video["youtube_video_id"],
+            title=video["title"],
+            position=video["position"],
+        )
+
+        if video["video_type"] == "official_video":
+            song_videos[song_id]["official_video"] = video_data
+        else:
+            song_videos[song_id]["live_performances"].append(video_data)
+
+    # build queue items
+    queue_items = []
+    for song in songs:
+        song_id = song["song_id"]
+
+        # skip songs without videos
+        if song_id not in song_videos:
+            continue
+
+        queue_items.append(
+            PlaybackQueueItem(
+                song_id=song_id,
+                name=song["name"],
+                artist=song_artists.get(song_id, []),
+                album=song["album_name"],
+                duration_ms=song["duration_ms"],
+                spotify_uri=song["spotify_uri"],
+                album_art_url=song["album_art_url"],
+                official_video=song_videos[song_id]["official_video"],
+                live_performances=song_videos[song_id]["live_performances"],
+            )
+        )
+
+    return {"queue_items": queue_items}

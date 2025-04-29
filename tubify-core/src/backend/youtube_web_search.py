@@ -171,7 +171,7 @@ async def get_video_details(video_id: str, api_key: str) -> Dict[str, Any]:
         return {}
 
 
-# Example hybrid approach
+# example hybrid approach
 async def get_song_videos(
     song_name: str,
     artist_str: str,
@@ -180,9 +180,9 @@ async def get_song_videos(
     api_key: Optional[str] = None,
 ):
     """
-    A hybrid approach that uses web scraping for search and API for details (if provided)
-    1. Search YouTube via web scraping (no quota used)
-    2. Optionally get details with API (1 quota unit per video) if api_key is provided
+    a hybrid approach that uses web scraping for search and API for details (if provided)
+    1. search YouTube via web scraping (no quota used)
+    2. optionally get details with API (1 quota unit per video) if api_key is provided
     """
     # search for official video
     official_query = f"{artist_str} {song_name} official video"

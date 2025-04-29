@@ -29,6 +29,7 @@ import {
   Recommendations,
   ListeningHabits,
   RecommendationAnalysis,
+  RecommendationYouTubeView,
 } from "./pages"
 import { Spinner } from "./components/ui/spinner"
 import { AuthContext } from "./contexts/auth"
@@ -47,6 +48,7 @@ import {
   listeningHabitsLoader,
   recommendationsLoader,
   recommendationAnalysisLoader,
+  recommendationYouTubeQueueLoader,
 } from "./loaders"
 import "./App.css"
 
@@ -281,8 +283,24 @@ const router = createBrowserRouter([
           const result = await fullAuthLoader(args)
           if (result) return result // if it returns a redirect, pass it through
 
-          // load recommendations
+          // load recommendations with video availability check
           return recommendationsLoader()
+        },
+      },
+      {
+        path: "/recommendations/watch",
+        element: (
+          <ProtectedRoute>
+            <RecommendationYouTubeView />
+          </ProtectedRoute>
+        ),
+        loader: async (args) => {
+          // first check auth and spotify status
+          const result = await fullAuthLoader(args)
+          if (result) return result // if it returns a redirect, pass it through
+
+          // load YouTube queue data for recommendations
+          return recommendationYouTubeQueueLoader()
         },
       },
       {

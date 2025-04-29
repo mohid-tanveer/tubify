@@ -44,6 +44,7 @@ interface RecommendationsListProps {
   }
   hideScores?: boolean
   showFeedbackButtons?: boolean
+  onFeedbackReceived?: () => void
 }
 
 const RecommendationsList: React.FC<RecommendationsListProps> = ({
@@ -56,6 +57,7 @@ const RecommendationsList: React.FC<RecommendationsListProps> = ({
   allRecommendations,
   hideScores = false,
   showFeedbackButtons = true,
+  onFeedbackReceived,
 }) => {
   const [recommendations, setRecommendations] = useState<RecommendedSong[]>(
     preloadedData || [],
@@ -139,6 +141,11 @@ const RecommendationsList: React.FC<RecommendationsListProps> = ({
   // new function to handle feedback changes
   const handleFeedbackChange = (songId: string, liked: boolean) => {
     console.log(`Feedback changed for song ${songId} - liked: ${liked}`)
+
+    // notify parent component that feedback was received
+    if (onFeedbackReceived) {
+      onFeedbackReceived()
+    }
 
     // update local state with the new feedback
     setRecommendations((prev) => {
