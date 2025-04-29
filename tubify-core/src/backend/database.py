@@ -18,24 +18,8 @@ async def lifespan(app: FastAPI):
     await database.connect()
     print("***database connected***")
 
-    try:
-        # initialize database with schema if not already initialized
-        try:
-            with open("schema.sql", "r") as schema_file:
-                schema = schema_file.read()
-                statements = [
-                    stmt.strip() for stmt in schema.split(";") if stmt.strip()
-                ]
-                for statement in statements:
-                    if statement:
-                        await database.execute(statement)
-            print("***schema initialized***")
-        except Exception as e:
-            print(f"error initializing schema: {str(e)}")
-            raise e
+    yield
 
-        yield
-    finally:
-        # disconnect from database on shutdown
-        await database.disconnect()
-        print("***database disconnected***")
+    # disconnect from database on shutdown
+    await database.disconnect()
+    print("***database disconnected***")

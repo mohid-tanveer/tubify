@@ -17,6 +17,9 @@ CREATE TABLE IF NOT EXISTS users (
     last_login TIMESTAMP WITH TIME ZONE
 );
 CREATE TABLE IF NOT EXISTS friendships (
+    -- friendships represent two-way relationships between users
+    -- so we interpret the friendship as being between user_id and friend_id
+    -- but only store it in one direction
     id SERIAL PRIMARY KEY,
     user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
     friend_id INTEGER REFERENCES users(id) ON DELETE CASCADE,

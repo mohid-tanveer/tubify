@@ -42,6 +42,20 @@ async def add_song_review(
 async def get_all_reviews(user: User = Depends(get_current_user)):
     """Get all reviews from the user and their friends, sorted by recency."""
     try:
+        friends_query = """
+            SELECT friend_id 
+            FROM friendships 
+            WHERE user_id = :user_id
+        """
+        friends = await database.fetch_all(friends_query, {"user_id": user.id})
+        friends_ids = [friend["friend_id"] for friend in friends]
+        friends_query = """
+            SELECT user_id FROM friendships WHERE friend_id = :user_id
+        """
+        friends_extended = await database.fetch_all(friends_query, {"user_id": user.id})
+        friends_extended_ids = [friend["user_id"] for friend in friends_extended]
+        all_ids = [user.id] + friends_ids + friends_extended_ids
+
         query = """
             SELECT 
                 r.id,
@@ -58,15 +72,36 @@ async def get_all_reviews(user: User = Depends(get_current_user)):
             JOIN users u ON r.user_id = u.id
             JOIN songs s ON r.song_id = s.id
             JOIN albums al ON s.album_id = al.id
-            WHERE r.user_id = :user_id 
-                OR r.user_id IN (
-                    SELECT friend_id 
-                    FROM friendships 
-                    WHERE user_id = :user_id
-                )
+            WHERE r.user_id = ANY(:user_ids)
             ORDER BY r.created_at DESC
         """
-        reviews = await database.fetch_all(query, {"user_id": user.id})
+
+        reviews = await database.fetch_all(query, {"user_ids": all_ids})
+        return reviews
+    except Exception as e:
+        print(e)
+        raise HTTPException(status_code=500, detail=f"Failed to fetch reviews: {e}")
+
+
+async def get_user_reviews(user: User = Depends(get_current_user)):
+    try:
+        reviews = await database.fetch_all(
+            """SELECT * FROM song_reviews WHERE user_id = :user_id""",
+            {"user_id": user.id},
+        )
+        return reviews
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch reviews: {e}")
+
+
+async def get_friend_reviews(
+    user: User = Depends(get_current_user), friend_id: int = Query(...)
+):
+    try:
+        reviews = await database.fetch_all(
+            """SELECT * FROM song_reviews WHERE user_id = :friend_id""",
+            {"friend_id": friend_id},
+        )
         return reviews
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch reviews: {e}")
