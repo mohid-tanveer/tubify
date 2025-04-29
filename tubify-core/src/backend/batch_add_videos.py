@@ -523,9 +523,24 @@ async def main():
                 # save progress to log file
                 with open(log_file, "a") as f:
                     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    f.write(
-                        f"[{timestamp}] Processed song {i+1}/{len(songs)}: {song['song_name']} by {song['all_artists']} - {'Success' if success else 'Failed'}\n"
-                    )
+                    try:
+                        f.write(
+                            f"[{timestamp}] Processed song {i+1}/{len(songs)}: {song['song_name']} by {song['all_artists']} - {'Success' if success else 'Failed'}\n"
+                        )
+                    except Exception as e:
+                        print(
+                            f"{Colors.RED}Error writing to log file: {str(e)}{Colors.END}"
+                        )
+                        print(f"writing to log file with cleaned characters")
+                        song_name_clean = (
+                            song["song_name"].encode("utf-8").decode("utf-8")
+                        )
+                        all_artists_clean = (
+                            song["all_artists"].encode("utf-8").decode("utf-8")
+                        )
+                        f.write(
+                            f"[{timestamp}] Processed song {i+1}/{len(songs)}: {song_name_clean} by {all_artists_clean} - {'Success' if success else 'Failed'}\n"
+                        )
 
                 # check if we've had too many API failures
                 if api_failures > 3:
@@ -542,7 +557,7 @@ async def main():
                     sleep_time = args.delay + random.uniform(
                         -1.0, 1.0
                     )  # add some randomness
-                    sleep_time = max(1.0, sleep_time)  # minimum 1 second
+                    sleep_time = max(1.0, sleep_time)  # Minimum 1 second
                     print(
                         f"{Colors.BLUE}Waiting {sleep_time:.1f} seconds before next song...{Colors.END}"
                     )
@@ -553,9 +568,21 @@ async def main():
                 # save error to log file
                 with open(log_file, "a") as f:
                     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    f.write(
-                        f"[{timestamp}] ERROR processing song {i+1}/{len(songs)}: {song['song_name']} - {str(e)}\n"
-                    )
+                    try:
+                        f.write(
+                            f"[{timestamp}] ERROR processing song {i+1}/{len(songs)}: {song['song_name']} - {str(e)}\n"
+                        )
+                    except Exception as e:
+                        print(
+                            f"{Colors.RED}Error writing to log file: {str(e)}{Colors.END}"
+                        )
+                        print(f"writing to log file with cleaned characters")
+                        song_name_clean = (
+                            song["song_name"].encode("utf-8").decode("utf-8")
+                        )
+                        f.write(
+                            f"[{timestamp}] ERROR processing song {i+1}/{len(songs)}: {song_name_clean} - {str(e)}\n"
+                        )
 
         print(
             f"\n{Colors.GREEN}Finished processing {processed_count} out of {len(songs)} songs.{Colors.END}"
