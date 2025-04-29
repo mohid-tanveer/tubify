@@ -184,3 +184,4 @@ cython_debug/
 tubify-core/src/backend/scripts/songs
 tubify-core/src/backend/scripts/.scriptsvenv
 tubify-core/src/backend/scripts/cookies.txt
+tubify-core/src/backend/video_import_log*
