@@ -186,3 +186,4 @@ tubify-core/src/backend/scripts/.scriptsvenv
 tubify-core/src/backend/scripts/cookies.txt
 tubify-core/src/backend/scripts/comparisons
 tubify-core/src/backend/video_import_log*
+tubify-core/src/backend/batch_add_videos2.py

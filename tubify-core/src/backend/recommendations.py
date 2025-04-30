@@ -1021,15 +1021,22 @@ async def get_api_recommendation_response(
 
     try:
         # generate hybrid recommendations (combination of different sources)
+        logger.info(f"Generating hybrid recommendations for user {user_id}")
         recommendations = await generate_recommendations(user_id, limit)
 
         # get recommendations from different sources for tab views
+        logger.info(f"Generating friend recommendations for user {user_id}")
         friend_recommendations = await get_friend_recommendation_details(user_id, limit)
+
+        logger.info(f"Generating similar recommendations for user {user_id}")
         similar_recommendations = await get_similar_recommendations(user_id, limit)
+
+        logger.info(f"Generating lyrical recommendations for user {user_id}")
         lyrical_recommendations = await get_lyrical_recommendations(user_id, limit)
 
         # get all user feedback to apply to recommendations in all tabs
         user_feedback = await get_user_feedback(user_id)
+        logger.info("Adding feedback to recommendations")
 
         # helper to add feedback to each recommendation
         def add_feedback_to_recommendations(recs):

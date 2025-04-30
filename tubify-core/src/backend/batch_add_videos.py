@@ -524,14 +524,6 @@ async def main():
                 with open(log_file, "a") as f:
                     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     try:
-                        f.write(
-                            f"[{timestamp}] Processed song {i+1}/{len(songs)}: {song['song_name']} by {song['all_artists']} - {'Success' if success else 'Failed'}\n"
-                        )
-                    except Exception as e:
-                        print(
-                            f"{Colors.RED}Error writing to log file: {str(e)}{Colors.END}"
-                        )
-                        print(f"writing to log file with cleaned characters")
                         song_name_clean = (
                             song["song_name"].encode("utf-8").decode("utf-8")
                         )
@@ -540,6 +532,10 @@ async def main():
                         )
                         f.write(
                             f"[{timestamp}] Processed song {i+1}/{len(songs)}: {song_name_clean} by {all_artists_clean} - {'Success' if success else 'Failed'}\n"
+                        )
+                    except Exception as e:
+                        print(
+                            f"{Colors.RED}Error writing to log file: {str(e)}{Colors.END}"
                         )
 
                 # check if we've had too many API failures
@@ -569,19 +565,18 @@ async def main():
                 with open(log_file, "a") as f:
                     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     try:
+                        song_name_clean = (
+                            song["song_name"].encode("utf-8").decode("utf-8")
+                        )
+                        all_artists_clean = (
+                            song["all_artists"].encode("utf-8").decode("utf-8")
+                        )
                         f.write(
                             f"[{timestamp}] ERROR processing song {i+1}/{len(songs)}: {song['song_name']} - {str(e)}\n"
                         )
                     except Exception as e:
                         print(
                             f"{Colors.RED}Error writing to log file: {str(e)}{Colors.END}"
-                        )
-                        print(f"writing to log file with cleaned characters")
-                        song_name_clean = (
-                            song["song_name"].encode("utf-8").decode("utf-8")
-                        )
-                        f.write(
-                            f"[{timestamp}] ERROR processing song {i+1}/{len(songs)}: {song_name_clean} - {str(e)}\n"
                         )
 
         print(

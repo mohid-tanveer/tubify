@@ -5,9 +5,16 @@ from datetime import datetime, timezone, timedelta
 import spotipy
 import asyncio
 import traceback
+import logging
 
 from auth import get_current_user, User
 from database import database
+
+# set up logging
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+logger = logging.getLogger("liked_songs")
 
 
 def get_spotify_client():
@@ -55,11 +62,15 @@ async def sync_liked_songs_background(user_id: int, spotify_client: spotipy.Spot
         job_id = await create_sync_job(user_id)
 
         # update spotify credentials to show sync is in progress
+        logger.info(
+            f"Updating spotify credentials to show sync is in progress for user {user_id}"
+        )
         await update_spotify_credentials_status(user_id, "syncing")
 
         # 1: fetch and process all user's liked tracks
+        logger.info(f"Fetching tracks from Spotify for user {user_id}")
         await update_sync_job_status(job_id, "Fetching tracks from Spotify", 1, 3)
-
+        logger.info(f"Processing tracks for user {user_id}")
         (
             artists_map,
             albums_map,
@@ -70,7 +81,9 @@ async def sync_liked_songs_background(user_id: int, spotify_client: spotipy.Spot
             processed,
             user_liked_songs_data,
         ) = await fetch_and_process_liked_tracks(user_id, spotify_client, job_id)
+        logger.info(f"Processed {processed} tracks for user {user_id}")
 
+        logger.info(f"Enriching artists data for user {user_id}")
         # 2: process artists data with real information from Spotify
         total_artists = len(artists_map)
         await update_sync_job_status(
@@ -80,6 +93,9 @@ async def sync_liked_songs_background(user_id: int, spotify_client: spotipy.Spot
         # begin phase 2 (artist enrichment)
         await update_sync_job_progress(job_id, 0.33, processed, 2, 3)
 
+        logger.info(
+            f"Enriching artists data with incremental progress updates for user {user_id}"
+        )
         # enrich artists data with incremental progress updates
         await enrich_artists_data_with_progress(
             artists_map,
@@ -88,6 +104,7 @@ async def sync_liked_songs_background(user_id: int, spotify_client: spotipy.Spot
             job_id,
         )
 
+        logger.info(f"Enriching albums data for user {user_id}")
         # 3: process albums data with real information from Spotify
         total_albums = len(albums_map)
         await update_sync_job_status(
@@ -97,6 +114,9 @@ async def sync_liked_songs_background(user_id: int, spotify_client: spotipy.Spot
         # begin phase 3 (album enrichment)
         await update_sync_job_progress(job_id, 0.66, processed, 3, 3)
 
+        logger.info(
+            f"Enriching albums data with incremental progress updates for user {user_id}"
+        )
         # enrich albums data with incremental progress updates
         await enrich_albums_data_with_progress(albums_map, spotify_client, job_id)
 
@@ -104,6 +124,7 @@ async def sync_liked_songs_background(user_id: int, spotify_client: spotipy.Spot
         total_operations = 6  # artists, albums, album-artists, genres, songs, song-artists, user-liked-songs
         current_operation = 0
 
+        logger.info(f"Inserting artists for user {user_id}")
         # 4: insert each data type in separate transactions to avoid cascading failures
         # insert artists
         try:
@@ -120,6 +141,7 @@ async def sync_liked_songs_background(user_id: int, spotify_client: spotipy.Spot
             print(f"error during artist insertion: {e}")
             # continue with next step
 
+        logger.info(f"Inserting albums for user {user_id}")
         # insert albums
         try:
             current_operation += 1
@@ -135,6 +157,7 @@ async def sync_liked_songs_background(user_id: int, spotify_client: spotipy.Spot
             print(f"error during album insertion: {e}")
             # continue with next step
 
+        logger.info(f"Inserting album-artist relationships for user {user_id}")
         # insert album-artist relationships
         try:
             current_operation += 1
@@ -150,6 +173,7 @@ async def sync_liked_songs_background(user_id: int, spotify_client: spotipy.Spot
             print(f"error during album-artist relationship insertion: {e}")
             # continue with next step
 
+        logger.info(f"Processing genres for user {user_id}")
         # process genres
         try:
             current_operation += 1
@@ -163,6 +187,7 @@ async def sync_liked_songs_background(user_id: int, spotify_client: spotipy.Spot
             print(f"error during genre processing: {e}")
             # continue with next step
 
+        logger.info(f"Inserting songs for user {user_id}")
         # insert songs
         try:
             current_operation += 1
@@ -178,6 +203,7 @@ async def sync_liked_songs_background(user_id: int, spotify_client: spotipy.Spot
             print(f"error during song insertion: {e}")
             # continue with next step
 
+        logger.info(f"Inserting song-artist relationships for user {user_id}")
         # insert song-artist relationships
         try:
             current_operation += 1
@@ -193,6 +219,7 @@ async def sync_liked_songs_background(user_id: int, spotify_client: spotipy.Spot
             print(f"error during song-artist relationship insertion: {e}")
             # continue with next step
 
+        logger.info(f"Inserting user liked songs for user {user_id}")
         # insert user liked songs
         try:
             current_operation += 1
