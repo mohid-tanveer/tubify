@@ -59,54 +59,37 @@ export default function EnterReview() {
 
   const handleSubmit = async () => {
     if (!id) {
-        toast.error("Please select a song")
-        return
+        toast.error("Please select a song");
+        return;
     }
     if (!rating || rating < 1 || rating > 5) {
-        toast.error("Please enter a valid rating between 1 and 5")
-        return
+        toast.error("Please enter a valid rating between 1 and 5");
+        return;
     }
 
     try {
-        setIsSubmitting(true)
-        //const url = `/api/reviews/songs?song_id=${id}&rating=${rating}`
-        //await api.post(url, {
-        //    review_text: reviewText || null
-        //})
-        //toast.success("Review submitted successfully!")
-        //navigate("/profile")
+        setIsSubmitting(true);
 
-        // 1. check if the song exists in the database
-        const songExistsResponse = await api.get(`/api/songs/search?query=${encodeURIComponent(searchQuery)}`)
-        const songExists = songExistsResponse.data.some((song: SongResult) => song.id === id)
-
-        if (!songExists) {
-            toast.error("Song not found in the database. Please add the song first.")
-            return
-        }
-
-        // 2. if the song exists, submit the review
-        console.log("reviewText:", reviewText)
-        const url = `/api/reviews/songs?song_id=${id}&rating=${rating}&review_text=${encodeURIComponent(reviewText || '')}`
+        // the backend will now handle adding the song if it doesn't exist
+        const url = `/api/reviews/songs?song_id=${id}&rating=${rating}`;
         await api.post(url, {
             review_text: reviewText || null
-        })
+        });
 
-        toast.success("Review submitted successfully!")
-        navigate("/profile")
-
+        toast.success("Review submitted successfully!");
+        navigate("/read-reviews");
     } catch (error) {
-        console.error("Failed to submit review:", error)
+        console.error("Failed to submit review:", error);
         if (error instanceof Error && (error as AxiosError).response?.data) {
-            console.log("Validation Errors:", (error as AxiosError).response?.data)
-            toast.error(JSON.stringify((error as AxiosError).response?.data)) 
+            console.log("Validation Errors:", (error as AxiosError).response?.data);
+            toast.error(JSON.stringify((error as AxiosError).response?.data)); 
         } else {
-            toast.error("Failed to submit review")
+            toast.error("Failed to submit review");
         }
     } finally {
-        setIsSubmitting(false)
+        setIsSubmitting(false);
     }
-}
+};
 
   return (
     <div className="scrollable-page bg-linear-to-b from-slate-900 to-black min-h-screen">

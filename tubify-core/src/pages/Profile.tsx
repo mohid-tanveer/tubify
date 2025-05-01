@@ -5,13 +5,23 @@ import api, { AxiosError } from "@/lib/axios"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { Pencil, X, Check, Music } from "lucide-react"
+import { Pencil, X, Check, Music, UserPlus, Bell, Users } from "lucide-react"
 import { toast } from "sonner"
 import { z } from "zod"
 import { Icons } from "@/components/icons"
 import { useNavigate, useLoaderData } from "react-router-dom"
 import { ProfileData } from "@/loaders/user-loaders"
 import { LikedSongsSync } from "@/components/ui/liked-songs-sync"
+import { Badge } from "@/components/ui/badge"
+import useResizeObserver from "@react-hook/resize-observer"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 
 const profileSchema = z.object({
   username: z
@@ -66,12 +76,24 @@ export default function Profile() {
   const [localFriends, setLocalFriends] = useState<Friend[]>(friends)
   const [localFriendRequests, setLocalFriendRequests] =
     useState<FriendRequest[]>(friendRequests)
+  const friendsContainerRef = useRef<HTMLDivElement>(null)
+  const [size, setSize] = useState({ width: 0 })
+  
+  useEffect(() => {
+    if (friendsContainerRef.current) {
+      setSize({ width: friendsContainerRef.current.offsetWidth })
+    }
+  }, [])
+  
+  useResizeObserver(friendsContainerRef, (entry) => {
+    setSize({ width: entry.contentRect.width })
+  })
 
   const handleAddFriend = async () => {
     try {
       setIsAddingFriend(true)
       await api.post(`/api/profile/add-friend/${searchUsername}`)
-      toast.success("Friend request sent!")
+      toast.success("friend request sent!")
 
       // clear the search input
       setSearchUsername("")
@@ -85,7 +107,7 @@ export default function Profile() {
       if (axiosError.response?.data?.detail) {
         toast.error(axiosError.response.data.detail)
       } else {
-        toast.error("Failed to send friend request.")
+        toast.error("failed to send friend request")
       }
     } finally {
       setIsAddingFriend(false)
@@ -97,7 +119,7 @@ export default function Profile() {
       const response = await api.post(
         `/api/profile/accept-friend-request/${senderId}`,
       )
-      toast.success("Friend request accepted!")
+      toast.success("friend request accepted!")
 
       // get the accepted friend from the response
       const acceptedFriend = response.data
@@ -115,7 +137,7 @@ export default function Profile() {
       if (axiosError.response?.data?.detail) {
         toast.error(axiosError.response.data.detail)
       } else {
-        toast.error("Failed to accept friend request.")
+        toast.error("failed to accept friend request")
       }
     }
   }
@@ -123,7 +145,7 @@ export default function Profile() {
   const handleRejectFriendRequest = async (senderId: number) => {
     try {
       await api.post(`/api/profile/reject-friend-request/${senderId}`)
-      toast.success("Friend request rejected")
+      toast.success("friend request rejected")
 
       // update local state by removing the rejected request
       setLocalFriendRequests((prevRequests) =>
@@ -137,7 +159,7 @@ export default function Profile() {
       if (axiosError.response?.data?.detail) {
         toast.error(axiosError.response.data.detail)
       } else {
-        toast.error("Failed to reject friend request.")
+        toast.error("failed to reject friend request")
       }
     }
   }
@@ -145,7 +167,7 @@ export default function Profile() {
   const handleRemoveFriend = async (friendId: number) => {
     try {
       await api.post(`/api/profile/remove-friend/${friendId}`)
-      toast.success("Friend removed!")
+      toast.success("friend removed!")
       // update local friends state by filtering out the removed friend
       setLocalFriends((prevFriends) =>
         prevFriends.filter((friend) => friend.id !== friendId),
@@ -158,7 +180,7 @@ export default function Profile() {
       if (axiosError.response?.data?.detail) {
         toast.error(axiosError.response.data.detail)
       } else {
-        toast.error("Failed to remove friend.")
+        toast.error("failed to remove friend")
       }
     }
   }
@@ -190,7 +212,7 @@ export default function Profile() {
         }
       } catch (error) {
         if (process.env.NODE_ENV === "development") {
-          console.error("Failed to check username:", error)
+          console.error("failed to check username:", error)
         }
       } finally {
         setIsCheckingUsername(false)
@@ -242,12 +264,12 @@ export default function Profile() {
       // update local profile state
       navigate(".", { replace: true }) // refresh the page to get updated data
       setIsEditing(false)
-      toast.success("Profile updated successfully")
+      toast.success("profile updated successfully")
     } catch (error) {
       if (process.env.NODE_ENV === "development") {
         console.error("failed to update profile:", error)
       }
-      toast.error("Failed to update profile")
+      toast.error("failed to update profile")
     } finally {
       setIsSaving(false)
     }
@@ -274,7 +296,7 @@ export default function Profile() {
           <TubifyTitle />
         </div>
         <div className="flex-1 flex items-center justify-center">
-          <p className="text-white">Please sign in to view your profile.</p>
+          <p className="text-white">please sign in to view your profile.</p>
         </div>
       </div>
     )
@@ -287,245 +309,354 @@ export default function Profile() {
           <TubifyTitle />
         </div>
         <div className="flex-1 flex items-center justify-center">
-          <p className="text-white">No profile data available.</p>
+          <p className="text-white">no profile data available.</p>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="overflow-hidden flex flex-col min-h-screen bg-neutral-800">
+    <div className="scrollable-page bg-linear-to-b from-slate-900 to-black">
       <div className="absolute top-0 left-0">
         <TubifyTitle />
       </div>
-      <div className="flex-1 flex flex-col items-center justify-center gap-4 p-4 mt-16 sm:mt-0">
-        <div className="flex flex-col sm:flex-row gap-8 w-full max-w-6xl px-4">
-          {/* profile section - full width on mobile, 1/3 on desktop */}
-          <div className="flex flex-col items-center gap-4 w-full sm:w-1/3 bg-neutral-700 border border-neutral-600 rounded-lg p-6 relative h-fit sm:self-center">
+      <br/>
+      <br/>
+      <br/>      
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-4 pb-8">       
+        <div className="grid gap-6 md:grid-cols-3">
+          {/* profile card */}
+          <div className="bg-slate-800/60 border border-slate-700 rounded-xl p-5 flex flex-col items-center relative">
             <Button
               onClick={handleEdit}
               variant="ghost"
               size="icon"
-              className="absolute top-4 right-4 text-white hover:bg-white/30"
+              className="absolute top-4 right-4 text-white hover:bg-white/10"
             >
               <Pencil className="w-4 h-4" />
             </Button>
-            <img
-              src={profile.profile_picture}
-              alt={`${profile.user_name}'s profile`}
-              className="w-32 h-32 rounded-full object-cover"
-            />
+            
+            <div className="w-24 h-24 md:w-32 md:h-32 rounded-full overflow-hidden mb-4 border-2 border-slate-600 flex items-center justify-center flex-shrink-0">
+              <img
+                src={profile.profile_picture}
+                alt={`${profile.user_name}'s profile`}
+                className="w-full h-full object-cover"
+              />
+            </div>
 
             {isEditing ? (
-              <>
-                <div className="w-full space-y-4">
-                  <div className="space-y-2">
-                    <label className="text-sm text-white">username</label>
-                    <div className="relative">
-                      <Input
-                        value={editForm.username}
-                        onChange={(e) =>
-                          setEditForm({ ...editForm, username: e.target.value })
-                        }
-                        className={`bg-white/10 border-white/20 text-white ${usernameError ? "border-red-500" : ""}`}
-                        placeholder="Enter your username"
-                      />
-                      {isCheckingUsername && (
-                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                          <Icons.spinner className="h-4 w-4 animate-spin text-white/50" />
-                        </div>
-                      )}
-                    </div>
-                    {usernameError && (
-                      <p className="text-sm text-red-500">{usernameError}</p>
+              <div className="w-full space-y-4">
+                <div className="space-y-2">
+                  <label className="text-sm text-white">username</label>
+                  <div className="relative">
+                    <Input
+                      value={editForm.username}
+                      onChange={(e) =>
+                        setEditForm({ ...editForm, username: e.target.value })
+                      }
+                      className={`bg-slate-700/50 border-slate-600 text-white ${usernameError ? "border-red-500" : ""}`}
+                      placeholder="enter your username"
+                    />
+                    {isCheckingUsername && (
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                        <Icons.spinner className="h-4 w-4 animate-spin text-white/50" />
+                      </div>
                     )}
                   </div>
-                  <div className="space-y-2">
-                    <label className="text-sm text-white">bio</label>
-                    <div className="relative">
-                      <Textarea
-                        value={editForm.bio}
-                        onChange={(e) =>
-                          setEditForm({ ...editForm, bio: e.target.value })
-                        }
-                        className="bg-white/10 border-white/20 text-white min-h-[100px] break-all overflow-hidden"
-                        placeholder="Tell us about yourself"
-                        maxLength={500}
-                      />
-                      <div className="absolute bottom-2 right-2 text-xs text-white/50">
-                        {editForm.bio.length}/500
-                      </div>
+                  {usernameError && (
+                    <p className="text-sm text-red-500">{usernameError}</p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm text-white">bio</label>
+                  <div className="relative">
+                    <Textarea
+                      value={editForm.bio}
+                      onChange={(e) =>
+                        setEditForm({ ...editForm, bio: e.target.value })
+                      }
+                      className="bg-slate-700/50 border-slate-600 text-white min-h-[100px] resize-none"
+                      placeholder="tell us about yourself"
+                      maxLength={500}
+                    />
+                    <div className="absolute bottom-2 right-2 text-xs text-white/50">
+                      {editForm.bio.length}/500
                     </div>
                   </div>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-2 pt-2">
                   <Button
                     onClick={handleSave}
                     disabled={isSaving}
                     variant="spotify"
+                    className="flex-1"
                   >
-                    <Check className="w-4 h-4 mr-2" />
-                    {isSaving ? "Saving..." : "Save"}
+                    {isSaving ? (
+                      <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Check className="w-4 h-4 mr-2" />
+                    )}
+                    save
                   </Button>
                   <Button
                     onClick={handleCancel}
                     disabled={isSaving}
                     variant="destructive"
+                    className="flex-1"
                   >
                     <X className="w-4 h-4 mr-2" />
-                    Cancel
+                    cancel
                   </Button>
                 </div>
-              </>
+              </div>
             ) : (
-              <div className="flex flex-col items-center w-full">
-                <div className="flex flex-col items-center flex-grow mb-8">
-                  <h2 className="text-white text-2xl mb-4">
-                    {profile.user_name}
-                  </h2>
-                  <p className="text-white text-center break-all whitespace-pre-wrap max-w-full overflow-hidden">
-                    {profile.bio || "No bio yet"}
-                  </p>
+              <div className="flex flex-col items-center w-full h-full">
+                <h2 className="text-white text-xl font-semibold">
+                  {profile.user_name}
+                </h2>
+                <div className="text-slate-400 text-center mt-2 mb-6 break-words whitespace-pre-wrap max-w-full">
+                  {profile.bio || "no bio yet"}
                 </div>
-                <Button
-                  onClick={handleLogout}
-                  variant="destructive"
-                  className="w-full sm:w-auto px-8"
-                >
-                  Sign out
-                </Button>
+                <div className="mt-auto w-full">
+                  <Button
+                    onClick={handleLogout}
+                    variant="destructive"
+                    className="w-full"
+                  >
+                    sign out
+                  </Button>
+                </div>
               </div>
             )}
           </div>
 
-          {/* friends section - full width on mobile, 2/3 on desktop */}
-          <div className="flex flex-col items-center gap-4 w-full sm:w-2/3 bg-neutral-700 border border-neutral-600 rounded-lg p-6">
-            <h2 className="text-white text-xl">Friends</h2>
-            <ul className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4 w-full">
-              {localFriends.map((friend) => (
-                <li
-                  key={friend.id}
-                  className="flex flex-col items-center gap-3 bg-slate-700 border border-neutral-600 rounded-lg hover:bg-slate-800 p-4 transition-[color,box-shadow,background-color,border-color] duration-200"
-                >
-                  <div
-                    className="flex flex-col items-center gap-3 cursor-pointer w-full"
-                    onClick={() => navigate(`/users/${friend.username}`)}
-                  >
-                    <img
-                      src={friend.profile_picture}
-                      alt={friend.username}
-                      className="w-20 h-20 rounded-full object-cover"
+          {/* friends and connections */}
+          <div className="md:col-span-2 space-y-5">
+            {/* friend actions */}
+            <div className="bg-slate-800/60 border border-slate-700 rounded-xl p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold text-white flex items-center">
+                  <Users className="w-5 h-5 mr-2" />
+                  connections
+                </h2>
+                
+                {/* friend requests dropdown */}
+                <div className="flex gap-3">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        className="relative bg-slate-700/50 border-slate-600 hover:bg-slate-700"
+                      >
+                        <Bell className="w-4 h-4 mr-2" />
+                        requests
+                        {localFriendRequests.length > 0 && (
+                          <Badge 
+                            className="ml-2 bg-green-600 hover:bg-green-600"
+                          >
+                            {localFriendRequests.length}
+                          </Badge>
+                        )}
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="bg-slate-800 border-slate-700 text-white">
+                      <DropdownMenuLabel>friend requests</DropdownMenuLabel>
+                      <DropdownMenuSeparator className="bg-slate-700" />
+                      
+                      {localFriendRequests.length === 0 ? (
+                        <div className="px-2 py-4 text-center text-sm text-slate-400">
+                          no pending requests
+                        </div>
+                      ) : (
+                        <DropdownMenuGroup className="max-h-60 overflow-y-auto">
+                          {localFriendRequests.map((request) => (
+                            <div key={request.sender_id} className="p-2">
+                              <div className="flex items-center mb-2">
+                                <span className="font-medium">{request.username}</span>
+                              </div>
+                              <div className="flex gap-2">
+                                <Button
+                                  onClick={() => handleAcceptFriendRequest(request.sender_id)}
+                                  variant="spotify"
+                                  size="sm"
+                                  className="w-full"
+                                >
+                                  accept
+                                </Button>
+                                <Button
+                                  onClick={() => handleRejectFriendRequest(request.sender_id)}
+                                  variant="destructive"
+                                  size="sm"
+                                  className="w-full"
+                                >
+                                  reject
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+                        </DropdownMenuGroup>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+
+                  {/* add friend */}
+                  <div className="flex items-center">
+                    <Input
+                      value={searchUsername}
+                      onChange={(e) => setSearchUsername(e.target.value)}
+                      placeholder="find by username"
+                      className="bg-slate-700/50 border-slate-600 text-white h-9 w-44"
                     />
-                    <span className="text-white text-center font-medium">
-                      {friend.username}
-                    </span>
+                    <Button
+                      onClick={handleAddFriend}
+                      disabled={isAddingFriend || !searchUsername}
+                      variant="outline"
+                      size="sm"
+                      className="ml-2 bg-slate-700/50 border-slate-600 hover:bg-slate-700"
+                    >
+                      {isAddingFriend ? (
+                        <Icons.spinner className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <UserPlus className="h-4 w-4" />
+                      )}
+                    </Button>
                   </div>
-                  <Button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      handleRemoveFriend(friend.id)
-                    }}
-                    variant="destructive"
-                    className="w-full"
-                  >
-                    Remove
-                  </Button>
-                </li>
-              ))}
-            </ul>
-            <h2 className="text-white text-xl">Friend Requests</h2>
-            <ul className="text-white">
-              {localFriendRequests.map((request) => (
-                <li key={request.sender_id} className="flex items-center gap-2">
-                  <span>{request.username}</span>
-                  <Button
-                    onClick={() => handleAcceptFriendRequest(request.sender_id)}
-                    variant="spotify"
-                  >
-                    Accept
-                  </Button>
-                  <Button
-                    onClick={() => handleRejectFriendRequest(request.sender_id)}
-                    variant="destructive"
-                  >
-                    Reject
-                  </Button>
-                </li>
-              ))}
-            </ul>
-            <div className="flex items-center gap-2">
-              <Input
-                value={searchUsername}
-                onChange={(e) => setSearchUsername(e.target.value)}
-                placeholder="Search username"
-              />
-              <Button
-                onClick={handleAddFriend}
-                disabled={isAddingFriend}
-                className="text-slate-700 transition-colors"
-              >
-                Add Friend
-              </Button>
+                </div>
+              </div>
+
+              {/* friends grid */}
+              {localFriends.length === 0 ? (
+                <div className="text-center py-4 text-slate-400">
+                  <Users className="mx-auto h-10 w-10 opacity-50 mb-1" />
+                  <p>you don't have any friends yet</p>
+                  <p className="text-sm mt-1">search for users and add them as friends</p>
+                </div>
+              ) : (
+                <div 
+                  ref={friendsContainerRef} 
+                  className="h-36 w-full"
+                >
+                  {size.width > 0 && (
+                    <div className="h-36 w-full overflow-auto scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-slate-800">
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-2 p-1">
+                        {localFriends.map((friend) => (
+                          <div
+                            key={friend.id}
+                            className="flex flex-col bg-slate-700/50 border border-slate-600 rounded-lg p-2 transition-colors hover:bg-slate-700"
+                          >
+                            <div
+                              className="flex items-center gap-2 cursor-pointer"
+                              onClick={() => navigate(`/users/${friend.username}`)}
+                            >
+                              <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0 border border-slate-600">
+                                <img
+                                  src={friend.profile_picture}
+                                  alt={friend.username}
+                                  className="w-full h-full object-cover"
+                                />
+                              </div>
+                              <div className="overflow-hidden">
+                                <span className="text-white text-sm font-medium truncate block">
+                                  {friend.username}
+                                </span>
+                                <Button
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    handleRemoveFriend(friend.id)
+                                  }}
+                                  variant="ghost"
+                                  size="sm"
+                                  className="text-xs h-5 px-2 text-red-400 hover:text-red-300 hover:bg-red-950/30"
+                                >
+                                  remove
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
-            <div className="flex flex-col gap-4 w-full">
-              {isSpotifyConnected ? (
-                <>
+            {/* spotify/music section */}
+            <div className="bg-slate-800/60 border border-slate-700 rounded-xl p-5">
+              <h2 className="text-lg font-semibold text-white flex items-center mb-4">
+                <Music className="w-5 h-5 mr-2" />
+                music
+              </h2>
+
+              <div className="space-y-3">
+                {isSpotifyConnected ? (
+                  <>
+                    <Button
+                      onClick={() => navigate("/playlists")}
+                      variant="spotify"
+                      className="w-full flex items-center justify-center"
+                    >
+                      <Icons.spotify className="mr-2 h-4 w-4" />
+                      my playlists
+                    </Button>
+                    
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <Button
+                        onClick={() => navigate("/recently-played")}
+                        variant="outline"
+                        className="bg-slate-700/50 border-slate-600 hover:bg-slate-700"
+                      >
+                        recently played tracks
+                      </Button>
+                      
+                      <Button
+                        onClick={() => navigate("/listening-habits")}
+                        variant="outline"
+                        className="bg-slate-700/50 border-slate-600 hover:bg-slate-700"
+                      >
+                        <Icons.chartBarBig className="mr-2 h-4 w-4" />
+                        listening habits
+                      </Button>
+                    </div>
+                    
+                    <div className="pt-3">
+                      <LikedSongsSync
+                        initialStatus={
+                          profile && profile.user_name && likedSongs
+                            ? {
+                                syncStatus: likedSongs.syncStatus,
+                                lastSynced: likedSongs.lastSynced,
+                                count: likedSongs.count,
+                              }
+                            : undefined
+                        }
+                      />
+                    </div>
+
+                    {likedSongs && likedSongs.count > 0 && (
+                      <Button
+                        onClick={() => navigate("/liked-songs")}
+                        variant="outline"
+                        className="w-full mt-3 bg-slate-700/50 border-slate-600 hover:bg-slate-700"
+                      >
+                        <Music className="mr-2 h-4 w-4" />
+                        view liked songs
+                      </Button>
+                    )}
+                  </>
+                ) : (
                   <Button
-                    onClick={() => navigate("/playlists")}
-                    variant="spotify"
-                    className="flex items-center justify-center gap-2 w-full"
+                    className="w-full flex items-center justify-center bg-slate-700 hover:bg-slate-600"
+                    onClick={() =>
+                      toast.error("please connect spotify to access playlists")
+                    }
                   >
                     <Icons.spotify className="mr-2 h-4 w-4" />
-                    My Playlists
+                    connect spotify to create playlists
                   </Button>
-                  <Button
-                    onClick={() => navigate("/recently-played")}
-                    className="flex items-center justify-center gap-2 w-full"
-                  >
-                    View Recently Played Tracks
-                  </Button>
-                  <Button
-                    onClick={() => navigate("/listening-habits")}
-                    className="flex items-center justify-center gap-2 w-full"
-                  >
-                    <Icons.chartBarBig className="mr-2 h-4 w-4" />
-                    View Listening Habits
-                  </Button>
-                  <LikedSongsSync
-                    initialStatus={
-                      profile && profile.user_name && likedSongs
-                        ? {
-                            syncStatus: likedSongs.syncStatus,
-                            lastSynced: likedSongs.lastSynced,
-                            count: likedSongs.count,
-                          }
-                        : undefined
-                    }
-                  />
-
-                  {likedSongs && likedSongs.count > 0 && (
-                    <Button
-                      onClick={() => navigate("/liked-songs")}
-                      variant="outline"
-                      className="flex items-center justify-center gap-2 w-full"
-                    >
-                      <Music className="mr-2 h-4 w-4" />
-                      View Liked Songs
-                    </Button>
-                  )}
-                </>
-              ) : (
-                <Button
-                  className="flex items-center justify-center gap-2 bg-gray-600 hover:bg-gray-700 cursor-not-allowed w-full"
-                  onClick={() =>
-                    toast.error("Please connect Spotify to access playlists")
-                  }
-                >
-                  <Icons.spotify className="mr-2 h-4 w-4" />
-                  Connect Spotify to Create Playlists
-                </Button>
-              )}
+                )}
+              </div>
             </div>
           </div>
         </div>

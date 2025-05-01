@@ -31,7 +31,8 @@ import {
   RecommendationAnalysis,
   RecommendationYouTubeView,
   EnterReview,
-  ReadReviews
+  ReadReviews,
+  UserReviews
 } from "./pages"
 import { Spinner } from "./components/ui/spinner"
 import { AuthContext } from "./contexts/auth"
@@ -52,6 +53,7 @@ import {
   recommendationAnalysisLoader,
   recommendationYouTubeQueueLoader,
   reviewsLoader,
+  userReviewsLoader
 } from "./loaders"
 import "./App.css"
 
@@ -377,6 +379,22 @@ const router = createBrowserRouter([
 
           // load reviews
           return reviewsLoader()
+        },
+      },
+      {
+        path: "/users/:username/reviews",
+        element: (
+          <ProtectedRoute>
+            <UserReviews />
+          </ProtectedRoute>
+        ),
+        loader: async (args) => {
+          // first check auth and spotify status
+          const result = await fullAuthLoader(args)
+          if (result) return result // if it returns a redirect, pass it through
+
+          // load user reviews
+          return userReviewsLoader(args as unknown as { params: { username: string } })
         },
       }
     ],
