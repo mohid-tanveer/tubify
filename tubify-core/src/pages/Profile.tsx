@@ -291,12 +291,17 @@ export default function Profile() {
 
   if (!isAuthenticated) {
     return (
-      <div className="overflow-hidden flex flex-col min-h-screen">
+      <div className="overflow-hidden flex flex-col min-h-screen bg-linear-to-b from-slate-900 to-black">
         <div className="absolute top-0 left-0">
           <TubifyTitle />
         </div>
         <div className="flex-1 flex items-center justify-center">
-          <p className="text-white">please sign in to view your profile.</p>
+          <div className="p-8 rounded-xl border border-slate-700 bg-slate-800/60 text-center">
+            <p className="text-white text-lg">Please sign in to view your profile.</p>
+            <Button className="mt-4" onClick={() => navigate('/auth')}>
+              Sign In
+            </Button>
+          </div>
         </div>
       </div>
     )
@@ -304,27 +309,28 @@ export default function Profile() {
 
   if (!profile) {
     return (
-      <div className="overflow-hidden flex flex-col min-h-screen">
+      <div className="overflow-hidden flex flex-col min-h-screen bg-linear-to-b from-slate-900 to-black">
         <div className="absolute top-0 left-0">
           <TubifyTitle />
         </div>
         <div className="flex-1 flex items-center justify-center">
-          <p className="text-white">no profile data available.</p>
+          <div className="p-8 rounded-xl border border-slate-700 bg-slate-800/60 text-center">
+            <Icons.spinner className="h-8 w-8 animate-spin text-slate-400 mx-auto mb-4" />
+            <p className="text-white">No profile data available.</p>
+          </div>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="scrollable-page bg-linear-to-b from-slate-900 to-black">
+    <div className="scrollable-page bg-linear-to-b from-slate-900 to-black min-h-screen flex flex-col items-center">
       <div className="absolute top-0 left-0">
         <TubifyTitle />
       </div>
-      <br/>
-      <br/>
-      <br/>      
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-4 pb-8">       
-        <div className="grid gap-6 md:grid-cols-3">
+      
+      <div className="w-full max-w-7xl px-4 sm:px-6 lg:px-8 pt-20 sm:pt-24 pb-8 mx-auto">       
+        <div className="grid gap-6 md:grid-cols-3 max-w-5xl mx-auto">
           {/* profile card */}
           <div className="bg-slate-800/60 border border-slate-700 rounded-xl p-5 flex flex-col items-center relative">
             <Button
