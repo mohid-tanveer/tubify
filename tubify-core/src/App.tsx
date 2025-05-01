@@ -37,6 +37,7 @@ import {
 import { Spinner } from "./components/ui/spinner"
 import { AuthContext } from "./contexts/auth"
 import { Toaster } from "@/components/ui/sonner"
+import { toast } from "sonner"
 import api from "./lib/axios"
 import {
   playlistsLoader,
@@ -402,87 +403,52 @@ const router = createBrowserRouter([
 ])
 
 function Layout() {
-  return (
-    <>
-      <Toaster richColors position="top-center" duration={3000} />
-      <EmailVerificationBanner />
-      <Outlet />
-    </>
-  )
-}
-
-function EmailVerificationBanner() {
   const { user } = useContext(AuthContext)
   const location = useLocation()
-  const [isVisible, setIsVisible] = useState(true)
   const [isResending, setIsResending] = useState(false)
-  const [resendStatus, setResendStatus] = useState<
-    "idle" | "success" | "error"
-  >("idle")
 
-  // don't show if: no user, email is verified, banner dismissed, or on verification page
-  if (
-    !user ||
-    user.is_email_verified ||
-    !isVisible ||
-    location.pathname.startsWith("/verify-email")
-  )
-    return null
-
-  const handleResend = async () => {
-    setIsResending(true)
-    setResendStatus("idle")
-    try {
-      await api.post("/api/auth/resend-verification")
-      setResendStatus("success")
-    } catch (error) {
-      if (process.env.NODE_ENV === "development") {
-        console.error("Failed to resend verification email:", error)
+  // check if the user needs to verify email and display a toast
+  useEffect(() => {
+    if (user && !user.is_email_verified && !location.pathname.startsWith("/verify-email")) {
+      const handleResend = async () => {
+        if (isResending) return;
+        
+        try {
+          setIsResending(true)
+          await api.post("/api/auth/resend-verification")
+          toast.success("Verification email sent!", {
+            description: "Please check your inbox for the verification link.",
+          })
+        } catch (error) {
+          if (process.env.NODE_ENV === "development") {
+            console.error("Failed to resend verification email:", error)
+          }
+          toast.error("Failed to send verification email", {
+            description: "Please try again later.",
+          })
+        } finally {
+          setIsResending(false)
+        }
       }
-      setResendStatus("error")
-    } finally {
-      setIsResending(false)
+
+      // display persistent toast for email verification
+      toast.info("Please verify your email address", {
+        description: "Check your inbox for a verification link",
+        duration: Infinity,
+        action: {
+          label: isResending ? "Sending..." : "Resend email",
+          onClick: handleResend,
+        },
+        id: "verify-email-toast", // use a fixed id to prevent duplicates
+      })
     }
-  }
+  }, [user, location.pathname, isResending])
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="relative bg-white p-8 rounded-lg shadow-lg w-full max-w-lg">
-        <button
-          onClick={() => setIsVisible(false)}
-          className="absolute top-4 right-4 text-white hover:text-slate-400"
-          aria-label="Close"
-        >
-          ✕
-        </button>
-        <div className="space-y-4 flex flex-col items-center">
-          <p className="text-black text-lg font-bold text-center">
-            <br />
-            <br />
-            Please verify your email address. Check your inbox for a
-            verification link.
-            <br />
-          </p>
-          {resendStatus === "success" && (
-            <p className="text-green-600 text-center">
-              ✓ New verification email sent!
-            </p>
-          )}
-          {resendStatus === "error" && (
-            <p className="text-red-600 text-center">
-              Failed to send verification email.
-            </p>
-          )}
-          <button
-            onClick={handleResend}
-            disabled={isResending}
-            className="text-sm text-white hover:text-slate-400 disabled:opacity-50 mt-2"
-          >
-            {isResending ? "Sending..." : "Resend verification email"}
-          </button>
-        </div>
-      </div>
-    </div>
+    <>
+      <Toaster richColors position="top-center" />
+      <Outlet />
+    </>
   )
 }
 

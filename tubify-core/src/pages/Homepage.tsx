@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button"
-import { Link, useSearchParams, useNavigate, useLoaderData } from "react-router-dom"
+import { Link, useNavigate, useLoaderData } from "react-router-dom"
 import { useContext, useState } from "react"
 import { AuthContext } from "@/contexts/auth"
 import { TubifyTitle } from "@/components/ui/tubify-title"
@@ -15,13 +15,7 @@ export default function Homepage() {
   const { isAuthenticated, user } = useContext(AuthContext)
   const [isLoading, setIsLoading] = useState<boolean>(false)
   const { isSpotifyConnected } = useLoaderData() as LoaderData
-  const [searchParams] = useSearchParams()
   const navigate = useNavigate()
-
-  // show toast if redirected from playlists due to missing spotify connection
-  if (searchParams.get('spotify_required') === 'true') {
-    toast.error('Please connect your Spotify account to access playlists')
-  }
 
   const handleSpotifyConnect = async () => {
     try {
@@ -79,7 +73,7 @@ export default function Homepage() {
           </div>
 
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 pb-8">
-            {/* profile Card */}
+            {/* profile card */}
             <div 
               className="flex h-full cursor-pointer flex-col items-center justify-center rounded-lg border border-slate-700 bg-slate-900/50 p-6 text-center transition-colors hover:border-slate-500 hover:bg-slate-900"
               onClick={() => navigate("/profile")}
@@ -88,16 +82,7 @@ export default function Homepage() {
               <p className="mt-1 text-sm text-slate-400">View and edit your profile</p>
             </div>
 
-            {/* search Card */}
-            <div 
-              className="flex h-full cursor-pointer flex-col items-center justify-center rounded-lg border border-slate-700 bg-slate-900/50 p-6 text-center transition-colors hover:border-slate-500 hover:bg-slate-900"
-              onClick={() => navigate("/search")}
-            >
-              <h3 className="text-lg font-medium text-white">Search</h3>
-              <p className="mt-1 text-sm text-slate-400">Find users and playlists</p>
-            </div>
-
-            {/* playlists Card */}
+            {/* playlists card */}
             {isSpotifyConnected ? (
               <div 
                 className="flex h-full cursor-pointer flex-col items-center justify-center rounded-lg border border-slate-700 bg-slate-900/50 p-6 text-center transition-colors hover:border-slate-500 hover:bg-slate-900"
@@ -118,58 +103,92 @@ export default function Homepage() {
               </div>
             )}
 
-            {/* recommendations Card */}
-            {isSpotifyConnected && (
+            {/* recommendations card */}
+            {isSpotifyConnected ? (
               <div 
                 className="flex h-full cursor-pointer flex-col items-center justify-center rounded-lg border border-slate-700 bg-slate-900/50 p-6 text-center transition-colors hover:border-slate-500 hover:bg-slate-900"
                 onClick={() => navigate("/recommendations")}
             >
-              <h3 className="text-lg font-medium text-white">Recommendations</h3>
+              <h3 className="text-lg font-medium text-white">Discover</h3>
               <p className="mt-1 text-sm text-slate-400">
                 View your personalized recommendations
                 </p>
               </div>
+            ) : (
+              <div 
+                className="flex h-full cursor-not-allowed flex-col items-center justify-center rounded-lg border border-slate-700 bg-slate-900/50 p-6 text-center"
+                onClick={() => toast.error("Please connect Spotify to access recommendations")}
+              >
+                <h3 className="text-lg font-medium text-slate-300">Discover</h3>
+                <p className="mt-1 text-sm text-slate-400">Connect Spotify to access recommendations</p>
+              </div>
             )}
 
-            {/* reviews card */}
+            {/* search card */}
             <div 
               className="flex h-full cursor-pointer flex-col items-center justify-center rounded-lg border border-slate-700 bg-slate-900/50 p-6 text-center transition-colors hover:border-slate-500 hover:bg-slate-900"
-              onClick={() => navigate("/enter-review")}
+              onClick={() => navigate("/search")}
+            >
+              <h3 className="text-lg font-medium text-white">Search</h3>
+              <p className="mt-1 text-sm text-slate-400">Find users and playlists</p>
+            </div>
+
+            {/* reviews card */}
+            {isSpotifyConnected ? (
+              <div 
+                className="flex h-full cursor-pointer flex-col items-center justify-center rounded-lg border border-slate-700 bg-slate-900/50 p-6 text-center transition-colors hover:border-slate-500 hover:bg-slate-900"
+                onClick={() => navigate("/enter-review")}
             >
               
               <h3 className="text-lg font-medium text-white">Write a Review</h3>
               <p className="mt-1 text-sm text-slate-400">Rate and review songs or albums</p>
             </div>
+            ) : (
+              <div 
+                className="flex h-full cursor-not-allowed flex-col items-center justify-center rounded-lg border border-slate-700 bg-slate-900/50 p-6 text-center"
+                onClick={() => toast.error("Please connect Spotify to access reviews")}
+              >
+                <h3 className="text-lg font-medium text-slate-300">Write a Review</h3>
+                <p className="mt-1 text-sm text-slate-400">Connect Spotify to access reviews</p>
+              </div>
+            )}
 
             {/* read reviews card */}
-            <div 
-              className="flex h-full cursor-pointer flex-col items-center justify-center rounded-lg border border-slate-700 bg-slate-900/50 p-6 text-center transition-colors hover:border-slate-500 hover:bg-slate-900"
-              onClick={() => navigate("/read-reviews")}
+            {isSpotifyConnected ? (
+              <div 
+                className="flex h-full cursor-pointer shadow-lg flex-col items-center justify-center rounded-lg border border-slate-700 bg-slate-900/50 p-6 text-center transition-colors hover:border-slate-500 hover:bg-slate-900"
+                onClick={() => navigate("/read-reviews")}
             >
               
               <h3 className="text-lg font-medium text-white">Read Reviews</h3>
               <p className="mt-1 text-sm text-slate-400">See what you and your friends think</p>
             </div>
-
-            {/* spotify connection Card */}
-            <div 
-              className="flex h-full cursor-pointer flex-col items-center justify-center rounded-lg border border-slate-700 bg-slate-900/50 p-6 text-center transition-colors hover:border-slate-500 hover:bg-slate-900"
-              onClick={isSpotifyConnected ? handleSpotifyDisconnect : handleSpotifyConnect}
-            >
-              {isLoading ? (
-                <Icons.spinner className="mb-2 h-8 w-8 animate-spin text-slate-400" />
-              ) : (
-                <Icons.spotify className="mb-2 h-8 w-8 text-slate-400" />
-              )}
-              <h3 className="text-lg font-medium text-white">
-                {isSpotifyConnected ? "Disconnect Spotify" : "Connect Spotify"}
-              </h3>
-              <p className="mt-1 text-sm text-slate-400">
-                {isSpotifyConnected ? "Remove Spotify connection" : "Link your Spotify account"}
-              </p>
-            </div>
+            ) : (
+              <div 
+                className="flex h-full cursor-not-allowed flex-col items-center justify-center rounded-lg border border-slate-700 bg-slate-900/50 p-6 text-center"
+                onClick={() => toast.error("Please connect Spotify to access reviews")}
+              >
+                <h3 className="text-lg font-medium text-slate-300">Read Reviews</h3>
+                <p className="mt-1 text-sm text-slate-400">Connect Spotify to access reviews</p>
+              </div>
+            )}
           </div>
         </div>
+
+        {/* floating spotify connect/disconnect button */}
+        <Button
+          onClick={isSpotifyConnected ? handleSpotifyDisconnect : handleSpotifyConnect}
+          className="fixed bottom-6 right-6 rounded-full shadow-lg flex items-center gap-2 px-4 py-2 bg-black/80 hover:bg-slate-950 text-slate-300 hover:text-white transition-colors"
+          size="sm"
+          disabled={isLoading}
+        >
+          {isLoading ? (
+            <Icons.spinner className="h-4 w-4 animate-spin" />
+          ) : (
+            <Icons.spotify className={`h-4 w-4 ${isSpotifyConnected ? "text-green-500" : "text-slate-400"}`} />
+          )}
+          {isSpotifyConnected ? "Disconnect Spotify" : "Connect Spotify"}
+        </Button>
       </div>
     )
   }

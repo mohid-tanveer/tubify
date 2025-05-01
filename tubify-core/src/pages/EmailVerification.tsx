@@ -3,6 +3,9 @@ import { useParams, useNavigate } from 'react-router-dom'
 import api from '@/lib/axios'
 import { Button } from "@/components/ui/button"
 import { AuthContext } from "@/contexts/auth"
+import { TubifyTitle } from "@/components/ui/tubify-title"
+import { Icons } from "@/components/icons"
+import { CheckCircle, XCircle } from "lucide-react"
 import { toast } from 'sonner'
 
 export default function EmailVerification() {
@@ -51,53 +54,80 @@ export default function EmailVerification() {
   }, [token, login])
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center">
-      <div className="w-full max-w-md mx-auto px-4">
-        {status === 'loading' && (
-          <div className="flex flex-col space-y-2 text-center">
-            <h1 className="text-2xl font-semibold tracking-tight text-white">
-              Verifying your email...
-            </h1>
-            <p className="text-sm text-white">
-              Please wait while we verify your email address.
-            </p>
-          </div>
-        )}
+    <div className="scrollable-page bg-linear-to-b from-slate-900 to-black min-h-screen">
+      <div className="relative sm:absolute top-0 left-0">
+        <TubifyTitle />
+      </div>
 
-        {status === 'success' && (
-          <div className="flex flex-col space-y-2 text-center">
-            <h1 className="text-2xl font-semibold tracking-tight text-green-400">
-              Email Verified!
-            </h1>
-            <p className="text-sm text-white">
-              Your email has been successfully verified.
-            </p>
-            <Button
-              className="mt-4 mx-auto"
-              onClick={() => navigate('/')}
-            >
-              Back to homepage
-            </Button>
-          </div>
-        )}
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-34 sm:pt-60">
+        <div className="flex flex-col items-center justify-center">
+          {status === 'loading' && (
+            <div className="w-full max-w-md p-6 rounded-lg border border-slate-700 bg-slate-900/50 shadow-lg text-center">
+              <div className="flex flex-col items-center space-y-6">
+                <Icons.spinner className="h-12 w-12 animate-spin text-slate-400" />
+                <div>
+                  <h1 className="text-2xl font-semibold tracking-tight text-white">
+                    Verifying your email...
+                  </h1>
+                  <p className="mt-2 text-sm text-slate-400">
+                    Please wait while we verify your email address.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
 
-        {status === 'error' && (
-          <div className="flex flex-col space-y-2 text-center">
-            <h1 className="text-2xl font-semibold tracking-tight text-red-600">
-              Verification Failed
-            </h1>
-            <p className="text-sm text-white">
-              The verification link is invalid or has expired. Please request a new verification email.
-            </p>
-            <Button
-              className="mt-4 mx-auto"
-              onClick={() => navigate('/auth')}
-              variant="outline"
-            >
-              Back to Sign In
-            </Button>
-          </div>
-        )}
+          {status === 'success' && (
+            <div className="w-full max-w-md p-6 rounded-lg border border-slate-700 bg-slate-900/50 shadow-lg text-center">
+              <div className="flex flex-col items-center space-y-4">
+                <div className="h-16 w-16 rounded-full bg-green-500/20 flex items-center justify-center">
+                  <CheckCircle className="h-8 w-8 text-green-500" />
+                </div>
+                <div>
+                  <h1 className="text-2xl font-semibold tracking-tight text-white">
+                    Email Verified!
+                  </h1>
+                  <p className="mt-2 text-sm text-slate-400">
+                    Your email has been successfully verified.
+                  </p>
+                </div>
+                <Button
+                  className="mt-4 w-full"
+                  onClick={() => navigate('/')}
+                >
+                  Back to homepage
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {status === 'error' && (
+            <div className="w-full max-w-md p-6 rounded-lg border border-slate-700 bg-slate-900/50 shadow-lg text-center">
+              <div className="flex flex-col items-center space-y-4">
+                <div className="h-16 w-16 rounded-full bg-red-500/20 flex items-center justify-center">
+                  <XCircle className="h-8 w-8 text-red-500" />
+                </div>
+                <div>
+                  <h1 className="text-2xl font-semibold tracking-tight text-white">
+                    Verification Failed
+                  </h1>
+                  <p className="mt-2 text-sm text-slate-400">
+                    The verification link is invalid or has expired.
+                  </p>
+                </div>
+                <div className="flex flex-col sm:flex-row gap-3 w-full">
+                  <Button
+                    variant="outline"
+                    className="w-full border-slate-700 text-slate-300 hover:text-white hover:bg-slate-800"
+                    onClick={() => navigate('/auth')}
+                  >
+                    Back to Sign In
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )
