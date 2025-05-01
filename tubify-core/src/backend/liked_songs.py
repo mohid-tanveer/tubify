@@ -870,17 +870,30 @@ async def enrich_albums_data_with_progress(albums_map, spotify_client, job_id):
 def process_release_date(raw_date):
     """process a Spotify release date into a SQL-compatible format."""
     if not raw_date:
-        return None
+        return "'2000-01-01'::date"  # default date for missing release dates
 
-    # handle different spotify date formats
-    date_parts = raw_date.split("-")
-    if len(date_parts) == 3:  # full date: YYYY-MM-DD
-        return f"'{raw_date}'::date"
-    elif len(date_parts) == 2:  # year-month: YYYY-MM
-        return f"'{raw_date}-01'::date"  # first day of month given
-    elif len(date_parts) == 1 and date_parts[0].isdigit():  # year only: YYYY
-        return f"'{raw_date}-01-01'::date"  # first day of year given
-    return None
+    try:
+        # handle different spotify date formats
+        date_parts = raw_date.split("-")
+
+        # validate year to handle cases like "0000"
+        if len(date_parts) >= 1 and (
+            len(date_parts[0]) != 4 or int(date_parts[0]) < 1900
+        ):
+            return "'2000-01-01'::date"  # use default for invalid years
+
+        if len(date_parts) == 3:  # full date: YYYY-MM-DD
+            return f"'{raw_date}'::date"
+        elif len(date_parts) == 2:  # year-month: YYYY-MM
+            return f"'{raw_date}-01'::date"  # first day of month given
+        elif len(date_parts) == 1 and date_parts[0].isdigit():  # year only: YYYY
+            return f"'{date_parts[0]}-01-01'::date"  # first day of year given
+
+        # fallback for any other format
+        return "'2000-01-01'::date"
+    except Exception:
+        # catch any parsing errors and use default date
+        return "'2000-01-01'::date"
 
 
 async def batch_insert_artists(artist_data_map):
@@ -926,9 +939,9 @@ async def batch_insert_albums(album_data_map):
 
         for i, (album_id, album_data) in enumerate(album_data_map.items()):
             # make sure the release_date has a valid value
-            release_date = album_data.get("release_date")
+            release_date = process_release_date(album_data.get("release_date"))
             if not release_date:
-                release_date = "NULL"
+                release_date = "'2000-01-01'::date"  # ensure a default value
 
             placeholders.append(
                 f"(:album_id_{i}, :album_name_{i}, :album_image_{i}, {release_date}, :album_popularity_{i}, :album_type_{i}, :album_total_tracks_{i})"
@@ -950,7 +963,14 @@ async def batch_insert_albums(album_data_map):
             """
             await database.execute(query=album_query, values=album_values)
     except Exception as e:
-        print(f"Error batch inserting albums: {str(e)}")
+        print(f"error batch inserting albums: {str(e)}")
+        # add more detailed logging to help debug future issues
+        if album_data_map:
+            sample_album_id = next(iter(album_data_map))
+            sample_album = album_data_map[sample_album_id]
+            print(
+                f"sample album data - id: {sample_album_id}, release_date: {sample_album.get('release_date', 'None')}"
+            )
 
 
 async def batch_insert_album_artists(artist_album_map):
