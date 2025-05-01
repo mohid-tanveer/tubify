@@ -143,9 +143,27 @@ async def find_and_add_youtube_videos(
     """find and add youtube videos for a song using the same filtering logic as youtube.py"""
     try:
         # clean and format song name for better search
-        song_name_clean = (
-            song_name.replace("(feat.", "").replace("feat.", "").split("(")[0].strip()
-        )
+        song_name_clean = song_name
+
+        # first remove feat. parts which are common in song titles
+        song_name_clean = song_name_clean.replace("(feat.", "").replace("feat.", "")
+
+        # better handling for parentheses in title
+        # if the title starts with a parenthesis but has content after the closing parenthesis,
+        # preserve both parts, otherwise just remove all parenthetical content
+        if song_name_clean.startswith("(") and ")" in song_name_clean:
+            closing_index = song_name_clean.find(")")
+            if closing_index < len(song_name_clean) - 1:
+                # preserve content after the parenthesis
+                after_parens = song_name_clean[closing_index + 1 :].strip()
+                inside_parens = song_name_clean[1:closing_index].strip()
+                song_name_clean = f"{inside_parens} {after_parens}".strip()
+            else:
+                # just content inside parentheses
+                song_name_clean = song_name_clean[1:closing_index].strip()
+        else:
+            # for normal titles, remove trailing parenthetical content
+            song_name_clean = song_name_clean.split("(")[0].strip()
 
         # first search for official music video using web search (no API quota used)
         official_query = f"{artist_str} {song_name_clean} official video"

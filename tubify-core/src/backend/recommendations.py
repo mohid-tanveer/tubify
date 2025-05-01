@@ -22,6 +22,10 @@ from datetime import datetime, date
 import traceback
 import pandas as pd
 from auth import get_current_user, get_db
+import aiohttp
+import http.client
+from urllib.parse import quote
+import asyncio
 
 # set up logging
 logging.basicConfig(
@@ -1784,12 +1788,15 @@ async def get_recommendation_analytics(user_id: int = Depends(get_current_user_i
                     if cluster.get("size", 0) == 0:
                         continue
 
+                    # get cluster ID (should be i after reindexing)
+                    cluster_id = cluster.get("id", i)
+
                     # add points from this cluster
                     for point in cluster.get("points", []):
                         song_point = {
                             "x": point.get("x", 0),
                             "y": point.get("y", 0),
-                            "cluster": i,
+                            "cluster": cluster_id,
                             "song_id": point.get("song_id"),
                         }
 
@@ -2279,9 +2286,34 @@ async def get_user_clusters_with_details(
         logger.info(
             f"After merging small clusters, effective number of clusters: {effective_k}"
         )
+
+        # create a mapping between original cluster IDs and new sequential IDs
+        # only for clusters that have points assigned to them
+        active_clusters = []
         for i, size in enumerate(cluster_sizes):
-            if size > 0:  # only log non-empty clusters
+            if size > 0:  # only include non-empty clusters
                 logger.info(f"Cluster {i} size after merging: {size} songs")
+                active_clusters.append(i)
+
+        # create a mapping from old cluster IDs to new sequential IDs
+        old_to_new_id = {}
+        for new_id, old_id in enumerate(active_clusters):
+            old_to_new_id[old_id] = new_id
+
+        # remap labels to use the new sequential IDs
+        new_labels = np.zeros_like(labels)
+        for i, label in enumerate(labels):
+            new_labels[i] = old_to_new_id[label]
+
+        # create a new array of centers with only the active clusters
+        new_centers = np.array([centers[i] for i in active_clusters])
+
+        # update variables to use the remapped data
+        labels = new_labels
+        centers = new_centers
+        k = len(active_clusters)
+
+        logger.info(f"After remapping, using {k} sequential clusters")
 
     # get the cluster centers for the final clusters
     centers = kmeans.cluster_centers_
@@ -2401,24 +2433,34 @@ async def get_user_clusters_with_details(
         # generate a cluster name based on audio profile and genres
         cluster_name = ""
         if cluster_genres:
-            # use the top genre as the base
-            cluster_name = cluster_genres[0] + " "
+            try:
+                # attempt to generate a name using Ollama
+                cluster_name = await generate_cluster_name_with_ollama(
+                    cluster_genres, audio_profile
+                )
+                logger.info(f"Generated cluster name with Ollama: {cluster_name}")
+            except Exception as e:
+                logger.error(f"Error generating cluster name with Ollama: {e}")
+                # fallback to the traditional naming method
+                cluster_name = cluster_genres[0] + " "
 
-            # add audio characteristic descriptors
-            if audio_profile.get("energy", 0) > 0.7:
-                cluster_name += "energetic"
-            elif audio_profile.get("energy", 0) < 0.4:
-                cluster_name += "chill"
-            elif audio_profile.get("valence", 0) > 0.6:
-                cluster_name += "upbeat"
-            elif audio_profile.get("valence", 0) < 0.4:
-                cluster_name += "melancholic"
-            elif audio_profile.get("acousticness", 0) > 0.6:
-                cluster_name += "acoustic"
-            elif audio_profile.get("instrumentalness", 0) > 0.5:
-                cluster_name += "instrumental"
-            else:
-                cluster_name += "music"
+                # add audio characteristic descriptors
+                if audio_profile.get("energy", 0) > 0.7:
+                    cluster_name += "energetic"
+                elif audio_profile.get("energy", 0) < 0.4:
+                    cluster_name += "chill"
+                elif audio_profile.get("valence", 0) > 0.6:
+                    cluster_name += "upbeat"
+                elif audio_profile.get("valence", 0) < 0.4:
+                    cluster_name += "melancholic"
+                elif audio_profile.get("acousticness", 0) > 0.6:
+                    cluster_name += "acoustic"
+                elif audio_profile.get("instrumentalness", 0) > 0.5:
+                    cluster_name += "instrumental"
+                else:
+                    cluster_name += "mix"
+        else:
+            cluster_name = f"Cluster {i + 1}"
 
         # create points for visualization with simplified hover info
         points = []
@@ -2442,7 +2484,7 @@ async def get_user_clusters_with_details(
 
         clusters.append(
             {
-                "id": i,
+                "id": i,  # This is now a sequential ID from 0 to k-1
                 "name": cluster_name,
                 "size": len(cluster_song_ids),
                 "genres": cluster_genres,
@@ -2453,11 +2495,7 @@ async def get_user_clusters_with_details(
                     "x": float(np.mean([p["x"] for p in points]) if points else 0),
                     "y": float(np.mean([p["y"] for p in points]) if points else 0),
                 },
-                "centroid": (
-                    kmeans.cluster_centers_[i].tolist()
-                    if i < len(kmeans.cluster_centers_)
-                    else []
-                ),
+                "centroid": centers[i].tolist() if i < len(centers) else [],
             }
         )
 
@@ -2471,6 +2509,20 @@ async def get_user_clusters_with_details(
         },
         "song_count": len(vectors),
     }
+
+    # filter out any empty clusters
+    active_clusters = []
+    for cluster in results["clusters"]:
+        if cluster["size"] > 0:
+            active_clusters.append(cluster)
+
+    # renumber the remaining clusters sequentially from 0 to n-1
+    for i, cluster in enumerate(active_clusters):
+        cluster["id"] = i
+
+    # update results with the filtered and renumbered clusters
+    results["clusters"] = active_clusters
+    results["num_clusters"] = len(active_clusters)
 
     # cache the results
     await save_cluster_data(user_id, results)
@@ -2622,3 +2674,79 @@ def sanitize_audio_profile(profile: Dict[str, Any]) -> Dict[str, float]:
             continue
 
     return sanitized
+
+
+async def generate_cluster_name_with_ollama(
+    genres: List[str], audio_features: Dict[str, float]
+) -> str:
+    """Generate a creative cluster name using Ollama's Gemma model based on genres and audio characteristics."""
+    try:
+        # select the top 3 genres (or fewer if less are available)
+        top_genres = genres[: min(3, len(genres))]
+
+        # find the two most distinctive audio characteristics
+        sorted_features = sorted(
+            audio_features.items(),
+            key=lambda x: abs(x[1] - 0.5),  # sort by how far from neutral (0.5)
+            reverse=True,
+        )
+        distinctive_features = sorted_features[: len(sorted_features)]
+
+        # create a formatted string of features
+        feature_text = ""
+        for feature, value in distinctive_features:
+            descriptor = "high" if value > 0.6 else "low" if value < 0.4 else "moderate"
+            feature_text += f"{descriptor} {feature} ({value:.2f}), "
+
+        # format the prompt
+        prompt = f"""Create a short, catchy name (3 words or less) for a music cluster with these characteristics:
+Genres: {', '.join(top_genres)}
+Audio features: {feature_text.rstrip(', ')}
+
+The name should be memorable, reflect the mood and style of the music, and NOT include the words "music", "cluster", or "playlist". Don't use quotes in your response.
+Just respond with the name only, nothing else.
+"""
+        # prepare the request to Ollama API
+        headers = {"Content-Type": "application/json"}
+        payload = {
+            "model": "gemma3:4b",
+            "prompt": prompt,
+            "stream": False,
+            "options": {"temperature": 0.5, "top_p": 0.9, "max_tokens": 20},
+        }
+
+        # make the API request
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    "http://localhost:11434/api/generate",
+                    headers=headers,
+                    json=payload,
+                    timeout=aiohttp.ClientTimeout(total=5),
+                ) as response:  # 5 second timeout
+                    if response.status == 200:
+                        result = await response.json()
+                        # clean up the response
+                        name = result.get("response", "").strip()
+
+                        # make sure it's not too long
+                        words = name.split()
+                        if len(words) > 3:
+                            name = " ".join(words[:3])
+
+                        return name if name else f"{top_genres[0]} Mix"
+                    else:
+                        logger.error(f"Ollama API error: {response.status}")
+                        return f"{top_genres[0]} Mix"
+        except asyncio.TimeoutError:
+            logger.error("Ollama API request timed out")
+            return f"{top_genres[0]} Mix"
+        except aiohttp.ClientError as e:
+            logger.error(f"Ollama API connection error: {e}")
+            return f"{top_genres[0]} Mix"
+
+    except Exception as e:
+        logger.error(f"Error generating cluster name with Ollama: {e}")
+        logger.error(traceback.format_exc())
+        # Fallback to a default name using the first genre
+        return f"{genres[0] if genres else 'Unknown'} Mix"

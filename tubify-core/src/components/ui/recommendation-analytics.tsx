@@ -325,40 +325,90 @@ const RecommendationAnalytics: React.FC<RecommendationAnalyticsProps> = ({
   // scatter plot for clusters if available
   const scatterData = analytics?.clusters
     ? {
-        datasets: [
-          // plot for songs grouped by cluster
-          ...Array.from({ length: analytics.clusters.num_clusters }, (_, i) => {
-            const colors = [
-              "rgba(255, 99, 132, 0.7)",
-              "rgba(54, 162, 235, 0.7)",
-              "rgba(255, 206, 86, 0.7)",
-              "rgba(75, 192, 192, 0.7)",
-              "rgba(153, 102, 255, 0.7)",
-              "rgba(255, 160, 64, 0.7)",
-              "rgba(255, 120, 120, 0.7)",
-              "rgba(130, 200, 255, 0.7)",
-            ]
+        datasets: analytics.enhanced_clusters?.clusters
+          ? // if we have enhanced clusters available, use them
+            (analytics.enhanced_clusters.clusters || []).map(
+              (cluster, index) => {
+                // Define consistent colors for clusters
+                const colors = [
+                  "rgba(255, 99, 132, 0.7)", // pink
+                  "rgba(54, 162, 235, 0.7)", // blue
+                  "rgba(75, 192, 192, 0.7)", // green/teal
+                  "rgba(153, 102, 255, 0.7)", // purple
+                  "rgba(255, 206, 86, 0.7)", // yellow
+                  "rgba(255, 160, 64, 0.7)", // orange
+                  "rgba(255, 120, 120, 0.7)", // light red
+                  "rgba(130, 200, 255, 0.7)", // light blue
+                  "rgba(180, 120, 200, 0.7)", // lavender
+                  "rgba(100, 200, 120, 0.7)", // mint green
+                  "rgba(200, 150, 100, 0.7)", // tan
+                  "rgba(130, 130, 230, 0.7)", // periwinkle
+                ]
 
-            // use descriptive name from enhanced_clusters if available
-            const clusterLabel =
-              analytics.enhanced_clusters?.clusters[i]?.name ||
-              `Cluster ${i + 1}`
+                // use descriptive name from enhanced_clusters
+                const clusterLabel = cluster.name || `Cluster ${index + 1}`
+                const clusterId = cluster.id
 
-            return {
-              label: clusterLabel,
-              data: analytics.clusters?.song_points
-                .filter((point: ClusterPoint) => point.cluster === i)
-                .map((point: ClusterPoint) => ({
-                  x: point.x,
-                  y: point.y,
-                  title: point.title || "Unknown song",
-                  artist: point.artist || "Unknown artist",
-                })),
-              backgroundColor: colors[i % colors.length],
-              pointRadius: 5,
-            }
-          }),
-        ],
+                return {
+                  label: clusterLabel,
+                  data: analytics.clusters?.song_points
+                    .filter(
+                      (point: ClusterPoint) => point.cluster === clusterId,
+                    )
+                    .map((point: ClusterPoint) => ({
+                      x: point.x,
+                      y: point.y,
+                      title: point.title || "Unknown song",
+                      artist: point.artist || "Unknown artist",
+                    })),
+                  backgroundColor: colors[clusterId % colors.length],
+                  pointRadius: 5,
+                }
+              },
+            )
+          : // fallback for when enhanced clusters aren't available
+            (() => {
+              // find unique cluster IDs from points
+              const clusterIds = [
+                ...new Set(
+                  analytics.clusters.song_points.map((p) => p.cluster),
+                ),
+              ]
+
+              // Consistent colors for clusters
+              const colors = [
+                "rgba(255, 99, 132, 0.7)", // pink
+                "rgba(54, 162, 235, 0.7)", // blue
+                "rgba(75, 192, 192, 0.7)", // green/teal
+                "rgba(153, 102, 255, 0.7)", // purple
+                "rgba(255, 206, 86, 0.7)", // yellow
+                "rgba(255, 160, 64, 0.7)", // orange
+                "rgba(255, 120, 120, 0.7)", // light red
+                "rgba(130, 200, 255, 0.7)", // light blue
+                "rgba(180, 120, 200, 0.7)", // lavender
+                "rgba(100, 200, 120, 0.7)", // mint green
+                "rgba(200, 150, 100, 0.7)", // tan
+                "rgba(130, 130, 230, 0.7)", // periwinkle
+              ]
+
+              return clusterIds.map((clusterId) => {
+                return {
+                  label: `Cluster ${clusterId + 1}`,
+                  data: analytics.clusters?.song_points
+                    .filter(
+                      (point: ClusterPoint) => point.cluster === clusterId,
+                    )
+                    .map((point: ClusterPoint) => ({
+                      x: point.x,
+                      y: point.y,
+                      title: point.title || "Unknown song",
+                      artist: point.artist || "Unknown artist",
+                    })),
+                  backgroundColor: colors[clusterId % colors.length],
+                  pointRadius: 5,
+                }
+              })
+            })(),
       }
     : null
 
