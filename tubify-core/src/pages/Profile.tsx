@@ -647,7 +647,7 @@ export default function Profile() {
                   </>
                 ) : (
                   <Button
-                    className="w-full flex items-center justify-center bg-slate-700 hover:bg-slate-600"
+                    className="w-full flex cursor-not-allowed items-center justify-center bg-slate-700 hover:bg-slate-600"
                     onClick={() =>
                       toast.error("please connect spotify to access playlists")
                     }
