@@ -67,7 +67,7 @@ async def get_listening_habits(
         recently_played_all.extend(recently_played["items"])
 
         # try to get more historical data with pagination if needed for better stats
-        for i in range(2):  # limit to 3 batches total (150 tracks max)
+        for i in range(10):  # limit to 10 batches total (500 tracks max)
             if recently_played["cursors"] and "before" in recently_played["cursors"]:
                 before = recently_played["cursors"]["before"]
                 try:

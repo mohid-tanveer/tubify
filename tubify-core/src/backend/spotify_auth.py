@@ -274,17 +274,93 @@ async def get_spotify_playlists(
         )
 
 
+async def fetch_recently_played_tracks(sp: spotipy.Spotify, limit: int = 200) -> list:
+    """
+    fetch recently played tracks from spotify with proper pagination
+
+    note: spotify limits this endpoint to approx 50 tracks regardless of pagination
+    this function attempts to fetch as many tracks as possible using timestamp-based pagination
+
+    args:
+        sp: authenticated spotify client
+        limit: maximum number of tracks to fetch (default 200)
+
+    returns:
+        list of track items
+    """
+    all_tracks = []
+
+    # initial request - get first batch of recently played
+    response = sp.current_user_recently_played(limit=50)
+
+    if "items" in response and response["items"]:
+        print(f"Initial fetch: {len(response['items'])} tracks")
+        all_tracks.extend(response["items"])
+    else:
+        print("No tracks returned in initial request")
+        return []
+
+    # spotify api may only return 50 tracks maximum through this endpoint
+    # according to community reports, but we'll try our best to get more
+    attempts = 0
+    max_attempts = 3  # limit to prevent unnecessary requests if hitting a hard cap
+
+    while len(all_tracks) < limit and attempts < max_attempts:
+        attempts += 1
+
+        # check if we have cursors for pagination
+        if not response.get("cursors") or "before" not in response["cursors"]:
+            print("No cursor found for pagination, can't fetch more tracks")
+            break
+
+        # get timestamp from oldest track to use as "before" parameter
+        before_timestamp = response["cursors"]["before"]
+
+        try:
+            print(
+                f"Attempt {attempts+1}: fetching tracks before timestamp {before_timestamp}"
+            )
+
+            # try to get tracks before the oldest timestamp
+            response = sp.current_user_recently_played(
+                limit=50, before=before_timestamp
+            )
+
+            # check if we got any new tracks
+            if not response.get("items") or len(response["items"]) == 0:
+                print("No more tracks available")
+                break
+
+            new_tracks = response["items"]
+            print(f"Fetched {len(new_tracks)} more tracks")
+
+            # add new tracks to our collection
+            all_tracks.extend(new_tracks)
+            print(f"Total tracks: {len(all_tracks)}")
+
+        except Exception as e:
+            print(f"Error fetching more tracks: {str(e)}")
+            break
+
+    print(f"Final total tracks: {len(all_tracks)}")
+    return all_tracks[:limit]  # ensure we don't exceed the requested limit
+
+
 # get user's recently played tracks
 @router.get("/recently-played")
 async def get_recently_played_tracks(
-    limit: int = 50,
     user: User = Depends(get_current_user),
     sp: spotipy.Spotify = Depends(get_spotify_client),
 ):
+    """
+    get user's recently played tracks
+
+    note: spotify typically limits this to around 50 tracks regardless of pagination
+    but we try our best to get more if possible
+    """
     try:
-        # call Spotify's Get Recently Played Tracks API
-        response = sp.current_user_recently_played(limit=limit)
-        tracks = response.get("items", [])
+        # fetch tracks using the dedicated pagination function
+        tracks = await fetch_recently_played_tracks(sp, limit=200)
 
         # format the response to return only relevant data
         formatted_tracks = [
@@ -299,13 +375,19 @@ async def get_recently_played_tracks(
                     if item["track"]["album"]["images"]
                     else None
                 ),
+                "track_id": item["track"]["id"],
             }
             for item in tracks
         ]
 
-        return {"recently_played": formatted_tracks}
+        return {
+            "recently_played": formatted_tracks,
+            "count": len(formatted_tracks),
+            "note": "Spotify typically limits history to 50 tracks regardless of pagination",
+        }
 
     except Exception as e:
+        print(f"Error fetching recently played tracks: {str(e)}")
         raise HTTPException(
             status_code=500, detail=f"Failed to fetch recently played tracks: {str(e)}"
         )
