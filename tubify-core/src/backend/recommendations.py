@@ -621,11 +621,11 @@ def mmr_rerank(
         positive = sum(1 for liked in user_feedback.values() if liked)
         negative = sum(1 for liked in user_feedback.values() if not liked)
 
-        # if user has given more negative feedback, focus more on diversity
-        if negative > positive:
+        # if user has given more positive feedback, focus more on diversity
+        if negative < positive:
             dynamic_lambda = max(0.3, lambda_param - 0.2)
-        # if user has given more positive feedback, focus more on relevance
-        elif positive > negative:
+        # if user has given more negative feedback, focus more on relevance
+        elif positive < negative:
             dynamic_lambda = min(0.9, lambda_param + 0.1)
 
     # incrementally build the ranked list
