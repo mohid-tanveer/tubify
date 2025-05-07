@@ -25,39 +25,63 @@ By combining personalized discovery, social connection, and multimedia content i
 
 ![System Design](./docs/systemDiagramFinal.png)
 
-### Website Design
+### Demo Videos
 
-#### User Startup
+<details>
+<summary>User Startup</summary>
 
 ![User Startup](./docs/videos/users-startup.gif)
 
-#### View Friends Liked Songs
+</details>
+
+<details>
+<summary>View Friends Liked Songs</summary>
 
 ![View Friends Liked Songs](./docs/videos/users-liked-songs.gif)
 
-#### View Reviews
+</details>
+
+<details>
+<summary>View Reviews</summary>
 
 ![View Reviews](./docs/videos/users-reviews.gif)
 
-#### Create Playlists
+</details>
+
+<details>
+<summary>Create Playlists</summary>
 
 ![Create Playlists](./docs/videos/playlists-creation.gif)
 
-#### Watch through Playlists
+</details>
+
+<details>
+<summary>Watch through Playlists</summary>
 
 ![Watch through Playlists](./docs/videos/playlists-videos.gif)
 
-#### View Recommendations
+</details>
+
+<details>
+<summary>View Recommendations</summary>
 
 ![View Recommendations](./docs/videos/recommendations.gif)
 
-#### View Recommendation Analysis
+</details>
+
+<details>
+<summary>View Recommendation Analysis</summary>
 
 ![View Recommendation Analysis](./docs/videos/recommendations-analysis.gif)
 
-#### Watch through Recommendations
+</details>
+
+<details>
+<summary>Watch through Recommendations</summary>
 
 ![Watch through Recommendations](./docs/videos/recommendations-videos.gif)
+
+</details>
 
 ## Dependencies
 
