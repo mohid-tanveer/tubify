@@ -23,63 +23,63 @@ By combining personalized discovery, social connection, and multimedia content i
 
 ### System Design
 
-![System Design](./docs/systemDiagramFinal.png)
+![System Design](./docs/systemDiagram.png)
 
 ### Demo Videos
 
 <details>
 <summary>User Startup</summary>
 
-![User Startup](./docs/videos/users-startup.gif)
+![User Startup](./gifs/users-startup.gif)
 
 </details>
 
 <details>
 <summary>View Friends Liked Songs</summary>
 
-![View Friends Liked Songs](./docs/videos/users-liked-songs.gif)
+![View Friends Liked Songs](./gifs/users-liked-songs.gif)
 
 </details>
 
 <details>
 <summary>View Reviews</summary>
 
-![View Reviews](./docs/videos/users-reviews.gif)
+![View Reviews](./gifs/users-reviews.gif)
 
 </details>
 
 <details>
 <summary>Create Playlists</summary>
 
-![Create Playlists](./docs/videos/playlists-creation.gif)
+![Create Playlists](./gifs/playlists-creation.gif)
 
 </details>
 
 <details>
 <summary>Watch through Playlists</summary>
 
-![Watch through Playlists](./docs/videos/playlists-videos.gif)
+![Watch through Playlists](./gifs/playlists-videos.gif)
 
 </details>
 
 <details>
 <summary>View Recommendations</summary>
 
-![View Recommendations](./docs/videos/recommendations.gif)
+![View Recommendations](./gifs/recommendations.gif)
 
 </details>
 
 <details>
 <summary>View Recommendation Analysis</summary>
 
-![View Recommendation Analysis](./docs/videos/recommendations-analysis.gif)
+![View Recommendation Analysis](./gifs/recommendations-analysis.gif)
 
 </details>
 
 <details>
 <summary>Watch through Recommendations</summary>
 
-![Watch through Recommendations](./docs/videos/recommendations-videos.gif)
+![Watch through Recommendations](./gifs/recommendations-videos.gif)
 
 </details>
 
