@@ -47,7 +47,7 @@ CLUSTER_CACHE_TTL = 24 * 60 * 60  # 24 hours in seconds
 
 # add a helper function to make numpy values JSON serializable
 def make_json_serializable(obj):
-    """Convert numpy types to Python standard types for JSON serialization"""
+    """convert numpy types to Python standard types for JSON serialization"""
     if isinstance(obj, np.integer):
         return int(obj)
     elif isinstance(obj, np.floating):
@@ -494,7 +494,7 @@ async def find_similar_songs(
 async def get_user_feature_clusters(
     user_id: int, k: int = CLUSTER_K, force_recalculate: bool = False
 ) -> List[np.ndarray]:
-    """Cluster a user's liked-song feature vectors into k centroids with optimal k selection."""
+    """cluster a user's liked-song feature vectors into k centroids with optimal k selection."""
     liked_songs = await get_user_liked_songs(user_id)
     features = await get_song_audio_features(liked_songs)
     vectors = [
@@ -592,8 +592,8 @@ def mmr_rerank(
     user_feedback: Optional[Dict[str, bool]] = None,
 ) -> List[Tuple[str, float]]:
     """
-    Maximal Marginal Relevance reranking: balances relevance (score) and diversity.
-    Incorporates user feedback to adjust ranking.
+    maximal marginal relevance reranking: balances relevance (score) and diversity.
+    incorporates user feedback to adjust ranking.
     """
     if not candidates:
         return []
@@ -1696,7 +1696,7 @@ async def get_similar_songs_with_knn(
 async def get_user_feature_vectors_with_feedback(
     user_id: int, use_clustering: bool = True
 ) -> Tuple[List[np.ndarray], Dict[str, bool]]:
-    """Get user feature vectors (clustered or average) and feedback data"""
+    """get user feature vectors (clustered or average) and feedback data"""
     # get user feedback
     user_feedback = await get_user_feedback(user_id)
 
@@ -1903,7 +1903,7 @@ async def get_recommendation_analytics(user_id: int = Depends(get_current_user_i
 
 # helper function to get cached cluster data
 async def get_cached_cluster_data(user_id: int) -> Optional[Dict[str, Any]]:
-    """Get cached cluster data for a user if it exists and is still valid"""
+    """get cached cluster data for a user if it exists and is still valid"""
     try:
         # get the cached data
         row = await database.fetch_one(
@@ -2026,7 +2026,7 @@ async def get_cluster_songs(
 async def get_user_clusters_with_details(
     user_id: int, k: int = CLUSTER_K, force_recalculate: bool = False
 ) -> Dict[str, Any]:
-    """Get detailed cluster information including names, songs, and genre information"""
+    """get detailed cluster information including names, songs, and genre information"""
 
     # try to get cached data first unless force_recalculate is True
     if not force_recalculate:
@@ -2484,7 +2484,7 @@ async def get_user_clusters_with_details(
 
         clusters.append(
             {
-                "id": i,  # This is now a sequential ID from 0 to k-1
+                "id": i,
                 "name": cluster_name,
                 "size": len(cluster_song_ids),
                 "genres": cluster_genres,
