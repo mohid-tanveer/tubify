@@ -4,6 +4,8 @@
 
 ### Project Description
 
+There was a time when music discovery felt organic; when actual people curated recommendations that influenced what we listened to, shaping the tastes of an entire generation. The rise of streaming has made music more accessible than ever, but it’s also shifted control into the hands of manipulated algorithms and record labels, prioritizing reach over resonance. Tubify is our attempt to bring back that human touch. Where the best recommendations don’t come from faceless algorithms, but from the people who know you best: your friends.
+
 Tubify is a powerful and engaging web application that connects directly with a user’s Spotify account to create a more social, interactive, and exploratory music experience. It allows users to create and manage Tubify-specific playlists, watch YouTube videos of their favorite tracks, receive intelligent music suggestions based on both their own and their friends’ listening histories, and share their thoughts by rating and reviewing songs. Tubify goes beyond traditional music apps by blending listening, discovery, and social interaction into one unified platform.
 
 With a strong emphasis on user experience, Tubify is designed around a clean, modern interface that feels intuitive and responsive. Whether you’re curating your perfect playlist, discovering what your friends are listening to, or diving into new genres, Tubify ensures that every feature is easy to access and enjoyable to use. It promotes a more social approach to music consumption, helping users stay connected through shared music preferences, and makes it seamless to exchange discoveries, build collaborative playlists, and explore overlapping or contrasting musical tastes.
